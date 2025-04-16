@@ -1,0 +1,206 @@
+extern crate gl;
+extern crate glfw;
+
+use glfw::{Action, Context, Key};
+
+fn main() {
+    // Initialize GLFW
+    let mut glfw = glfw::init(glfw::fail_on_errors).unwrap();
+    glfw.window_hint(glfw::WindowHint::ContextVersion(3, 3));
+    glfw.window_hint(glfw::WindowHint::OpenGlProfile(
+        glfw::OpenGlProfileHint::Core,
+    ));
+    #[cfg(target_os = "macos")]
+    glfw.window_hint(glfw::WindowHint::OpenGlForwardCompat(true));
+
+    // Create a window and OpenGL context
+    let (mut window, events) = glfw
+        .create_window(
+            800,
+            600,
+            "Triangle Example - glfw with gl",
+            glfw::WindowMode::Windowed,
+        )
+        .expect("Failed to create GLFW window");
+
+    // Make the window's context current
+    window.make_current();
+    window.set_key_polling(true);
+    window.set_framebuffer_size_polling(true);
+
+    // Load OpenGL function pointers
+    gl::load_with(|symbol| window.get_proc_address(symbol) as *const _);
+
+    // Define vertex data for a triangle
+    let vertices: [f32; 9] = [
+        0.0, 0.5, 0.0, // top
+        -0.5, -0.5, 0.0, // bottom left
+        0.5, -0.5, 0.0, // bottom right
+    ];
+
+    // Set up OpenGL objects
+    let (vertex_array, vertex_buffer, shader_program) = unsafe {
+        // Create a vertex array object
+        let mut vao = 0;
+        gl::GenVertexArrays(1, &mut vao);
+        gl::BindVertexArray(vao);
+
+        // Create a vertex buffer object
+        let mut vbo = 0;
+        gl::GenBuffers(1, &mut vbo);
+        gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
+        gl::BufferData(
+            gl::ARRAY_BUFFER,
+            (vertices.len() * std::mem::size_of::<f32>()) as isize,
+            vertices.as_ptr() as *const _,
+            gl::STATIC_DRAW,
+        );
+
+        // Configure vertex attributes
+        gl::VertexAttribPointer(
+            0,
+            3,
+            gl::FLOAT,
+            gl::FALSE,
+            (3 * std::mem::size_of::<f32>()) as i32,
+            std::ptr::null(),
+        );
+        gl::EnableVertexAttribArray(0);
+
+        // Create and compile the vertex shader
+        let vertex_shader = gl::CreateShader(gl::VERTEX_SHADER);
+        let vertex_shader_source = std::ffi::CString::new(
+            "#version 330 core
+            layout (location = 0) in vec3 aPos;
+
+            void main() {
+                gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);
+            }",
+        )
+        .unwrap();
+        gl::ShaderSource(
+            vertex_shader,
+            1,
+            &vertex_shader_source.as_ptr(),
+            std::ptr::null(),
+        );
+        gl::CompileShader(vertex_shader);
+        check_shader_compilation(vertex_shader);
+
+        // Create and compile the fragment shader
+        let fragment_shader = gl::CreateShader(gl::FRAGMENT_SHADER);
+        let fragment_shader_source = std::ffi::CString::new(
+            "#version 330 core
+            out vec4 FragColor;
+
+            void main() {
+                FragColor = vec4(1.0, 0.5, 0.2, 1.0);
+            }",
+        )
+        .unwrap();
+        gl::ShaderSource(
+            fragment_shader,
+            1,
+            &fragment_shader_source.as_ptr(),
+            std::ptr::null(),
+        );
+        gl::CompileShader(fragment_shader);
+        check_shader_compilation(fragment_shader);
+
+        // Create and link the shader program
+        let shader_program = gl::CreateProgram();
+        gl::AttachShader(shader_program, vertex_shader);
+        gl::AttachShader(shader_program, fragment_shader);
+        gl::LinkProgram(shader_program);
+        check_program_linking(shader_program);
+
+        // Delete the shaders as they're linked into the program and no longer needed
+        gl::DeleteShader(vertex_shader);
+        gl::DeleteShader(fragment_shader);
+
+        (vao, vbo, shader_program)
+    };
+
+    // Main render loop
+    while !window.should_close() {
+        // Process events
+        process_events(&mut window, &events);
+
+        // Render
+        unsafe {
+            gl::ClearColor(0.2, 0.3, 0.3, 1.0);
+            gl::Clear(gl::COLOR_BUFFER_BIT);
+
+            // Draw the triangle
+            gl::UseProgram(shader_program);
+            gl::BindVertexArray(vertex_array);
+            gl::DrawArrays(gl::TRIANGLES, 0, 3);
+        }
+
+        // Swap buffers and poll for events
+        window.swap_buffers();
+        glfw.poll_events();
+    }
+
+    // Clean up
+    unsafe {
+        gl::DeleteVertexArrays(1, &vertex_array);
+        gl::DeleteBuffers(1, &vertex_buffer);
+        gl::DeleteProgram(shader_program);
+    }
+}
+
+fn process_events(
+    window: &mut glfw::Window,
+    events: &glfw::GlfwReceiver<(f64, glfw::WindowEvent)>,
+) {
+    for (_, event) in glfw::flush_messages(events) {
+        match event {
+            glfw::WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
+                window.set_should_close(true)
+            }
+            glfw::WindowEvent::FramebufferSize(width, height) => unsafe {
+                gl::Viewport(0, 0, width, height)
+            },
+            _ => {}
+        }
+    }
+}
+
+unsafe fn check_shader_compilation(shader: u32) {
+    let mut success = 0;
+    gl::GetShaderiv(shader, gl::COMPILE_STATUS, &mut success);
+    if success == 0 {
+        let mut log_length = 0;
+        gl::GetShaderiv(shader, gl::INFO_LOG_LENGTH, &mut log_length);
+        let mut log = Vec::with_capacity(log_length as usize);
+        log.set_len(log_length as usize);
+        gl::GetShaderInfoLog(
+            shader,
+            log_length,
+            std::ptr::null_mut(),
+            log.as_mut_ptr() as *mut i8,
+        );
+        let log_str = std::str::from_utf8(&log).unwrap_or("Unknown error");
+        println!("Shader compilation failed: {}", log_str);
+    }
+}
+
+unsafe fn check_program_linking(program: u32) {
+    let mut success = 0;
+    gl::GetProgramiv(program, gl::LINK_STATUS, &mut success);
+    if success == 0 {
+        let mut log_length = 0;
+        gl::GetProgramiv(program, gl::INFO_LOG_LENGTH, &mut log_length);
+        let mut log = Vec::with_capacity(log_length as usize);
+        log.set_len(log_length as usize);
+        gl::GetProgramInfoLog(
+            program,
+            log_length,
+            std::ptr::null_mut(),
+            log.as_mut_ptr() as *mut i8,
+        );
+        let log_str = std::str::from_utf8(&log).unwrap_or("Unknown error");
+        println!("Program linking failed: {}", log_str);
+    }
+}
