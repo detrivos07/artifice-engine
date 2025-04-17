@@ -3,7 +3,7 @@
 version = 4
 
 [[package]]
-name = "artifice-engine-core"
+name = "artifice-engine"
 version = "0.1.0"
 dependencies = [
  "gl",

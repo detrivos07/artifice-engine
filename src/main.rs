@@ -1,35 +1,10 @@
 extern crate gl;
 extern crate glfw;
 
-use glfw::{Action, Context, Key};
+mod io;
 
 fn main() {
-    // Initialize GLFW
-    let mut glfw = glfw::init(glfw::fail_on_errors).unwrap();
-    glfw.window_hint(glfw::WindowHint::ContextVersion(3, 3));
-    glfw.window_hint(glfw::WindowHint::OpenGlProfile(
-        glfw::OpenGlProfileHint::Core,
-    ));
-    #[cfg(target_os = "macos")]
-    glfw.window_hint(glfw::WindowHint::OpenGlForwardCompat(true));
-
-    // Create a window and OpenGL context
-    let (mut window, events) = glfw
-        .create_window(
-            800,
-            600,
-            "Triangle Example - glfw with gl",
-            glfw::WindowMode::Windowed,
-        )
-        .expect("Failed to create GLFW window");
-
-    // Make the window's context current
-    window.make_current();
-    window.set_key_polling(true);
-    window.set_framebuffer_size_polling(true);
-
-    // Load OpenGL function pointers
-    gl::load_with(|symbol| window.get_proc_address(symbol) as *const _);
+    let mut window = crate::io::GlfwWindow::new(800, 600, "Artfice Engine V0.0.0");
 
     // Define vertex data for a triangle
     let vertices: [f32; 9] = [
@@ -123,8 +98,7 @@ fn main() {
 
     // Main render loop
     while !window.should_close() {
-        // Process events
-        process_events(&mut window, &events);
+        window.update();
 
         // Render
         unsafe {
@@ -136,10 +110,6 @@ fn main() {
             gl::BindVertexArray(vertex_array);
             gl::DrawArrays(gl::TRIANGLES, 0, 3);
         }
-
-        // Swap buffers and poll for events
-        window.swap_buffers();
-        glfw.poll_events();
     }
 
     // Clean up
@@ -147,23 +117,6 @@ fn main() {
         gl::DeleteVertexArrays(1, &vertex_array);
         gl::DeleteBuffers(1, &vertex_buffer);
         gl::DeleteProgram(shader_program);
-    }
-}
-
-fn process_events(
-    window: &mut glfw::Window,
-    events: &glfw::GlfwReceiver<(f64, glfw::WindowEvent)>,
-) {
-    for (_, event) in glfw::flush_messages(events) {
-        match event {
-            glfw::WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
-                window.set_should_close(true)
-            }
-            glfw::WindowEvent::FramebufferSize(width, height) => unsafe {
-                gl::Viewport(0, 0, width, height)
-            },
-            _ => {}
-        }
     }
 }
 
