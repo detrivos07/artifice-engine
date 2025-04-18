@@ -4,8 +4,7 @@ extern crate glfw;
 use glfw::{Action, Context, Key, WindowHint};
 
 pub struct GlfwWindow {
-    width: u32,
-    height: u32,
+    size: Size,
     title: String,
     glfw: glfw::Glfw,
     glfw_window: glfw::PWindow,
@@ -35,37 +34,91 @@ impl GlfwWindow {
         gl::load_with(|symbol| glfw_window.get_proc_address(symbol) as *const std::os::raw::c_void);
 
         GlfwWindow {
-            width,
-            height,
+            size: Size::from((width, height)),
             title: title.to_string(),
             glfw,
             glfw_window,
             events,
         }
     }
+}
 
-    //Swaps buffers, Polls events, and processes events
-    pub fn update(&mut self) {
+impl Window for GlfwWindow {
+    /// Swaps buffers, Polls events, and processes events
+    fn update(&mut self) {
         self.glfw_window.swap_buffers();
         self.glfw.poll_events();
         self.process_events();
     }
 
-    pub fn process_events(&mut self) {
+    fn process_events(&mut self) {
         for (_, event) in glfw::flush_messages(&self.events) {
             match event {
                 glfw::WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
                     self.glfw_window.set_should_close(true)
                 }
-                glfw::WindowEvent::FramebufferSize(width, height) => unsafe {
-                    gl::Viewport(0, 0, width, height)
-                },
+                glfw::WindowEvent::FramebufferSize(width, height) => {
+                    self.size = Size::from((width, height));
+                    unsafe {
+                        gl::Viewport(0, 0, width, height);
+                    }
+                }
                 _ => {}
             }
         }
     }
 
-    pub fn should_close(&self) -> bool {
+    fn set_should_close(&mut self) {
+        self.glfw_window.set_should_close(true);
+    }
+
+    fn should_close(&self) -> bool {
         self.glfw_window.should_close()
+    }
+
+    fn size(&self) -> &Size {
+        &self.size
+    }
+
+    fn title(&self) -> &str {
+        &self.title
+    }
+}
+
+#[allow(dead_code)]
+pub trait Window {
+    fn update(&mut self);
+    fn process_events(&mut self);
+    fn set_should_close(&mut self);
+    fn should_close(&self) -> bool;
+    fn size(&self) -> &Size;
+    fn title(&self) -> &str;
+}
+
+#[allow(dead_code)]
+pub struct Size(u32, u32);
+
+impl Size {
+    #[allow(dead_code)]
+    pub fn size(&self) -> u32 {
+        self.0 + self.1
+    }
+}
+
+impl From<(u32, u32)> for Size {
+    fn from((width, height): (u32, u32)) -> Self {
+        Size(width, height)
+    }
+}
+
+impl From<(i32, i32)> for Size {
+    fn from((width, height): (i32, i32)) -> Self {
+        Size(width as u32, height as u32)
+    }
+}
+
+impl From<Size> for (u32, u32) {
+    fn from(size: Size) -> Self {
+        (size.0, size.1)
     }
 }

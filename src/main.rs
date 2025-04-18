@@ -3,6 +3,8 @@ extern crate glfw;
 
 mod io;
 
+use crate::io::Window;
+
 fn main() {
     let mut window = crate::io::GlfwWindow::new(800, 600, "Artfice Engine V0.0.0");
 
