@@ -1,6 +1,8 @@
 extern crate gl;
 extern crate glfw;
 
+mod keyboard;
+
 use glfw::{Action, Context, Key, WindowHint};
 
 pub struct GlfwWindow {
