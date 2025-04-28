@@ -12,6 +12,20 @@ enum LogLevel {
     TRACE,
 }
 
+impl LogLevel {
+    /// Returns the log level as a string.
+    fn as_str(&self) -> &str {
+        match self {
+            LogLevel::FATAL => "FATAL",
+            LogLevel::ERROR => "ERROR",
+            LogLevel::WARN => "WARN",
+            LogLevel::INFO => "INFO",
+            LogLevel::DEBUG => "DEBUG",
+            LogLevel::TRACE => "TRACE",
+        }
+    }
+}
+
 /// Automatically logs a fatal message with the given message.
 pub fn fatal(message: &str) {
     log(LogLevel::FATAL, message);
@@ -46,12 +60,5 @@ pub fn trace(message: &str) {
 /// This will format the log message with the log level, timestamp, and append the message upon that.
 fn log(level: LogLevel, message: &str) {
     let now = chrono::offset::Local::now();
-    match level {
-        LogLevel::FATAL => println!("[FATAL]:[{}]: {}", now, message),
-        LogLevel::ERROR => println!("[ERROR]:[{}]: {}", now, message),
-        LogLevel::WARN => println!("[WARN]:[{}]: {}", now, message),
-        LogLevel::INFO => println!("[INFO]:[{}]: {}", now, message),
-        LogLevel::DEBUG => println!("[DEBUG]:[{}]: {}", now, message),
-        LogLevel::TRACE => println!("[TRACE]:[{}]: {}", now, message),
-    }
+    println!("[{}]:[{}]: {}", level.as_str(), now, message);
 }

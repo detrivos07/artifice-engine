@@ -3,12 +3,27 @@
  - Window
   - Abstraction Layer
   - GLFW
-  - SDL?
+  - wayland???
+  - X11???
+  - win32 api???
  - Keyboard
  - Mouse
- - Joystick
  - Gamepad/Controller
+- App Framework
+  - Used to build the application
+  - handles event loop
+- Simple Logger
+
+FINAL GOAL: Have an application be able to run and respond to both mouse and keyboard events.
+
+## v0.2.0
+- File I/O Handling
 - OpenGL
- - Abstraction?
- - Basic Shaders
-- Event Loop
+ - Context Handling
+ - Shaders
+ - Basic Meshes
+ - Basic Mesh Rendering
+- Camera
+-
+
+FINAL GOAL: Have an application be able to render a basic mesh using OpenGL.

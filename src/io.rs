@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 pub mod artificeglfw;
 mod button;
 mod keyboard;
@@ -7,39 +9,83 @@ mod keyboard;
 /// This trait defines the basic functionality of a window, including updating,
 /// processing events, setting the should close flag, checking if the window
 /// should close, getting the window size, and getting the window title.
-#[allow(dead_code)]
 pub trait Window {
     fn update(&mut self);
     fn process_events(&mut self);
     fn set_should_close(&mut self);
     fn should_close(&self) -> bool;
+    fn set_position(&mut self, position: Position);
+    fn position(&self) -> &Position;
+    fn set_size(&mut self, size: Size);
     fn size(&self) -> &Size;
     fn title(&self) -> &str;
+}
+
+pub trait OpenGLWindow: Window {
+    fn is_current(&self) -> bool;
+    fn make_current(&mut self);
 }
 
 pub struct Size(u32, u32);
 
 impl Size {
-    #[allow(dead_code)]
-    pub fn size(&self) -> u32 {
-        self.0 + self.1
+    /// Returns the width and height of the Size.
+    pub fn size(&self) -> (u32, u32) {
+        (self.0, self.1)
     }
 }
 
 impl From<(u32, u32)> for Size {
+    /// Converts a `(u32, u32)` into a `Size`.
     fn from((width, height): (u32, u32)) -> Self {
         Size(width, height)
     }
 }
 
 impl From<(i32, i32)> for Size {
+    /// Converts a `(i32, i32)` into a `Size`.
     fn from((width, height): (i32, i32)) -> Self {
         Size(width as u32, height as u32)
     }
 }
 
 impl From<Size> for (u32, u32) {
+    /// Converts a `Size` into a tuple of `(u32, u32)`.
     fn from(size: Size) -> Self {
         (size.0, size.1)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct Position(i32, i32);
+
+impl Position {
+    /// Returns the x and y coordinates of the Position.
+    pub fn position(&self) -> (i32, i32) {
+        (self.0, self.1)
+    }
+
+    /// returns the x of the Position.
+    pub fn x(&self) -> i32 {
+        self.0
+    }
+
+    /// returns the y of the Position.
+    pub fn y(&self) -> i32 {
+        self.1
+    }
+}
+
+impl From<(i32, i32)> for Position {
+    /// Converts a `(i32, i32)` into a `Position`.
+    fn from((x, y): (i32, i32)) -> Self {
+        Position(x, y)
+    }
+}
+
+impl From<Position> for (i32, i32) {
+    /// Converts a `Position` into a tuple of `(i32, i32)`.
+    fn from(position: Position) -> Self {
+        (position.0, position.1)
     }
 }
