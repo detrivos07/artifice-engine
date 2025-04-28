@@ -2,7 +2,7 @@
 name = "artifice-engine"
 version = "0.0.0"
 edition = "2021"
-authors = ["Spencer Yascolt"]
+authors = ["Detrivos"]
 description = "The core libraries for the artifice-engine"
 
 [lib]
@@ -10,5 +10,14 @@ name = "artifice_engine"
 path = "src/lib.rs"
 
 [dependencies]
+chrono = "0.4.40"
+
 glfw = "0.59.0"
 gl = "0.14.0"
+
+[dependencies.artificecore-logging]
+path = "src/logging"
+version = "0.1.0"
+
+[workspace]
+members = ["src/logging"]

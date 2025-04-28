@@ -3,10 +3,11 @@ extern crate glfw;
 
 mod io;
 
-use crate::io::Window;
+use crate::io::{artificeglfw::GlfwWindow, Window};
 
 fn main() {
-    let mut window = crate::io::GlfwWindow::new(800, 600, "Artfice Engine V0.0.0");
+    logging::info("Program has started!");
+    let mut window = GlfwWindow::new(800, 600, "Artfice Engine V0.0.0");
 
     // Define vertex data for a triangle
     let vertices: [f32; 9] = [
@@ -120,6 +121,7 @@ fn main() {
         gl::DeleteBuffers(1, &vertex_buffer);
         gl::DeleteProgram(shader_program);
     }
+    logging::info("Program has finished");
 }
 
 unsafe fn check_shader_compilation(shader: u32) {

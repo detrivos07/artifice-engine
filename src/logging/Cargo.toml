@@ -1,0 +1,13 @@
+[package]
+name = "artificecore-logging"
+version = "0.1.0"
+edition = "2021"
+authors = ["Detrivos"]
+description = "Logging module for ArtificeCore"
+
+[lib]
+name = "logging"
+path = "src/lib.rs"
+
+[dependencies]
+chrono = "0.4.40"
