@@ -26,7 +26,7 @@ impl Application for TestApplication {
         }
     }
 
-    fn on_init(&mut self) {
+    fn init(&mut self) {
         logging::set_log_level(Level::DEBUG);
         logging::info("TestApplication initialized!");
 
@@ -129,7 +129,7 @@ impl Application for TestApplication {
         logging::info("OpenGL initialized successfully");
     }
 
-    fn on_update(&mut self, delta_time: f32) {
+    fn update(&mut self, delta_time: f32) {
         // Update rotation
         self.rotation += delta_time * 0.5;
 
@@ -139,7 +139,7 @@ impl Application for TestApplication {
         }
     }
 
-    fn on_render(&mut self) {
+    fn render(&mut self) {
         // Render
         unsafe {
             gl::ClearColor(0.2, 0.3, 0.3, 1.0);
@@ -158,7 +158,7 @@ impl Application for TestApplication {
         }
     }
 
-    fn on_shutdown(&mut self) {
+    fn shutdown(&mut self) {
         // Clean up
         unsafe {
             gl::DeleteVertexArrays(1, &self.vertex_array);
@@ -168,7 +168,7 @@ impl Application for TestApplication {
         logging::info("TestApplication shutdown complete!");
     }
 
-    fn on_event(&mut self, event: &mut Event) {
+    fn event(&mut self, event: &mut Event) {
         // Check if the event is a keyboard event
         if event.event_type == EventType::Keyboard {
             // Try to get the keyboard event data

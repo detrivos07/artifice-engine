@@ -19,19 +19,19 @@ pub trait Application: Send + 'static {
         Self: Sized;
 
     /// Called once when the application starts
-    fn on_init(&mut self) {}
+    fn init(&mut self) {}
 
     /// Called once per frame to update the application state
-    fn on_update(&mut self, _delta_time: f32) {}
+    fn update(&mut self, _delta_time: f32) {}
 
     /// Called once per frame after update to render the application
-    fn on_render(&mut self) {}
+    fn render(&mut self) {}
 
     /// Called when the application is about to close
-    fn on_shutdown(&mut self) {}
+    fn shutdown(&mut self) {}
 
     /// Called for each event that occurs
-    fn on_event(&mut self, _event: &mut Event) {}
+    fn event(&mut self, _event: &mut Event) {}
 
     /// Get the application name
     fn get_name(&self) -> &str {
@@ -42,19 +42,19 @@ pub trait Application: Send + 'static {
 /// A layer that can be added to the application stack
 pub trait Layer: Send + 'static {
     /// Called once when the layer is attached to the application
-    fn on_attach(&mut self) {}
+    fn attach(&mut self) {}
 
     /// Called once when the layer is detached from the application
-    fn on_detach(&mut self) {}
+    fn detach(&mut self) {}
 
     /// Called once per frame to update the layer state
-    fn on_update(&mut self, _delta_time: f32) {}
+    fn update(&mut self, _delta_time: f32) {}
 
     /// Called once per frame after update to render the layer
-    fn on_render(&mut self) {}
+    fn render(&mut self) {}
 
     /// Called for each event that occurs
-    fn on_event(&mut self, _event: &mut Event) {}
+    fn event(&mut self, _event: &mut Event) {}
 
     /// Get the layer name
     fn get_name(&self) -> &str {
@@ -114,11 +114,11 @@ impl<T: Application> Engine<T> {
         self.window.set_event_callback(event_callback);
 
         // Initialize the application
-        self.application.on_init();
+        self.application.init();
 
         // Initialize layers
         for layer in &mut self.layers {
-            layer.on_attach();
+            layer.attach();
         }
 
         logging::info("Starting main loop");
@@ -173,13 +173,13 @@ impl<T: Application> Engine<T> {
                 let mut event_copy = event;
                 for layer in self.layers.iter_mut().rev() {
                     if !event_copy.is_handled() {
-                        layer.on_event(&mut event_copy);
+                        layer.event(&mut event_copy);
                     }
                 }
 
                 // Forward events to application
                 if !event_copy.is_handled() {
-                    self.application.on_event(&mut event_copy);
+                    self.application.event(&mut event_copy);
                 }
             }
 
@@ -189,19 +189,19 @@ impl<T: Application> Engine<T> {
 
             // Update layers
             for layer in &mut self.layers {
-                layer.on_update(delta_time);
+                layer.update(delta_time);
             }
 
             // Update application
-            self.application.on_update(delta_time);
+            self.application.update(delta_time);
 
             // Render layers
             for layer in &mut self.layers {
-                layer.on_render();
+                layer.render();
             }
 
             // Render application
-            self.application.on_render();
+            self.application.render();
 
             // Update window (swap buffers)
             self.window.update();
@@ -211,11 +211,11 @@ impl<T: Application> Engine<T> {
 
         // Detach layers in reverse order
         for layer in self.layers.iter_mut().rev() {
-            layer.on_detach();
+            layer.detach();
         }
 
         // Shutdown the application
-        self.application.on_shutdown();
+        self.application.shutdown();
 
         logging::info("Engine shutdown complete");
     }
@@ -229,7 +229,7 @@ impl<T: Application> Engine<T> {
     /// Add a layer to the application
     pub fn push_layer(&mut self, mut layer: Box<dyn Layer>) {
         logging::debug(&format!("Adding layer: {}", layer.get_name()));
-        layer.on_attach();
+        layer.attach();
         self.layers.push(layer);
     }
 
@@ -237,7 +237,7 @@ impl<T: Application> Engine<T> {
     pub fn pop_layer(&mut self) {
         if let Some(mut layer) = self.layers.pop() {
             logging::debug(&format!("Removing layer: {}", layer.get_name()));
-            layer.on_detach();
+            layer.detach();
         }
     }
 
