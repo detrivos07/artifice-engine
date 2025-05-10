@@ -1,5 +1,6 @@
-use std::collections::HashMap;
+use logging;
 use std::any::Any;
+use std::collections::HashMap;
 use std::fmt::Debug;
 
 /// The core Event trait that all events must implement
@@ -14,7 +15,6 @@ pub enum EventType {
     Window,
     Keyboard,
     Mouse,
-    Gamepad,
     Application,
     Custom(u32),
 }
@@ -175,34 +175,15 @@ impl EventTrait for MouseScrollEvent {
     }
 }
 
-/// Gamepad Events
+/// Application Events
 #[derive(Debug, Clone)]
-pub struct GamepadButtonEvent {
-    pub gamepad_id: u32,
-    pub button: GamepadButton,
-    pub action: KeyAction, // Reusing KeyAction for gamepad buttons
+pub struct ApplicationTickEvent {
+    pub delta_time: f32,
 }
 
-impl EventTrait for GamepadButtonEvent {
+impl EventTrait for ApplicationTickEvent {
     fn event_type(&self) -> EventType {
-        EventType::Gamepad
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct GamepadAxisEvent {
-    pub gamepad_id: u32,
-    pub axis: GamepadAxis,
-    pub value: f32,
-}
-
-impl EventTrait for GamepadAxisEvent {
-    fn event_type(&self) -> EventType {
-        EventType::Gamepad
+        EventType::Application
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -211,23 +192,32 @@ impl EventTrait for GamepadAxisEvent {
 }
 
 /// Event Dispatcher
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct EventDispatcher {
     handlers: HashMap<EventType, Vec<Box<dyn EventHandler>>>,
 }
 
 impl EventDispatcher {
     pub fn new() -> Self {
+        logging::debug("Creating event dispatcher");
         EventDispatcher {
             handlers: HashMap::new(),
         }
     }
 
     pub fn register_handler(&mut self, event_type: EventType, handler: Box<dyn EventHandler>) {
-        self.handlers.entry(event_type).or_insert_with(Vec::new).push(handler);
+        logging::debug(&format!(
+            "Registering handler for event type: {:?}",
+            event_type
+        ));
+        self.handlers
+            .entry(event_type)
+            .or_insert_with(Vec::new)
+            .push(handler);
     }
 
     pub fn dispatch_event(&mut self, event: &mut Event) {
+        logging::trace(&format!("Dispatching event: {:?}", event.event_type));
         if let Some(handlers) = self.handlers.get_mut(&event.event_type) {
             for handler in handlers.iter_mut() {
                 handler.handle_event(event);
@@ -236,6 +226,42 @@ impl EventDispatcher {
                 }
             }
         }
+    }
+
+    /// Register a closure as an event handler
+    pub fn add_event_listener<F>(&mut self, event_type: EventType, listener: F)
+    where
+        F: Fn(&mut Event) + Send + Sync + Debug + 'static,
+    {
+        let handler = ClosureEventHandler::new(listener);
+        self.register_handler(event_type, Box::new(handler));
+    }
+}
+
+// Implementation of an event handler that wraps a closure
+#[derive(Debug)]
+struct ClosureEventHandler<F>
+where
+    F: Fn(&mut Event) + Send + Sync + Debug + 'static,
+{
+    callback: F,
+}
+
+impl<F> ClosureEventHandler<F>
+where
+    F: Fn(&mut Event) + Send + Sync + Debug + 'static,
+{
+    fn new(callback: F) -> Self {
+        ClosureEventHandler { callback }
+    }
+}
+
+impl<F> EventHandler for ClosureEventHandler<F>
+where
+    F: Fn(&mut Event) + Send + Sync + Debug + 'static,
+{
+    fn handle_event(&mut self, event: &mut Event) {
+        (self.callback)(event);
     }
 }
 
@@ -249,15 +275,50 @@ pub enum KeyCode {
     Minus,
     Period,
     Slash,
-    Num0, Num1, Num2, Num3, Num4, Num5, Num6, Num7, Num8, Num9,
+    Num0,
+    Num1,
+    Num2,
+    Num3,
+    Num4,
+    Num5,
+    Num6,
+    Num7,
+    Num8,
+    Num9,
     Semicolon,
     Equal,
-    A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z,
+    A,
+    B,
+    C,
+    D,
+    E,
+    F,
+    G,
+    H,
+    I,
+    J,
+    K,
+    L,
+    M,
+    N,
+    O,
+    P,
+    Q,
+    R,
+    S,
+    T,
+    U,
+    V,
+    W,
+    X,
+    Y,
+    Z,
     LeftBracket,
     Backslash,
     RightBracket,
     GraveAccent,
-    World1, World2,
+    World1,
+    World2,
     Escape,
     Enter,
     Tab,
@@ -277,9 +338,41 @@ pub enum KeyCode {
     NumLock,
     PrintScreen,
     Pause,
-    F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12,
-    F13, F14, F15, F16, F17, F18, F19, F20, F21, F22, F23, F24, F25,
-    KP0, KP1, KP2, KP3, KP4, KP5, KP6, KP7, KP8, KP9,
+    F1,
+    F2,
+    F3,
+    F4,
+    F5,
+    F6,
+    F7,
+    F8,
+    F9,
+    F10,
+    F11,
+    F12,
+    F13,
+    F14,
+    F15,
+    F16,
+    F17,
+    F18,
+    F19,
+    F20,
+    F21,
+    F22,
+    F23,
+    F24,
+    F25,
+    KP0,
+    KP1,
+    KP2,
+    KP3,
+    KP4,
+    KP5,
+    KP6,
+    KP7,
+    KP8,
+    KP9,
     KPDecimal,
     KPDivide,
     KPMultiply,
@@ -296,7 +389,6 @@ pub enum KeyCode {
     RightAlt,
     RightSuper,
     Menu,
-    // R is already included in the alphabet keys above
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -322,6 +414,12 @@ impl KeyMod {
     }
 }
 
+impl Default for KeyMod {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Mouse Buttons
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum MouseButton {
@@ -336,36 +434,4 @@ pub enum MouseButton {
     Left,
     Right,
     Middle,
-}
-
-/// Gamepad Buttons and Axes
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum GamepadButton {
-    A,
-    B,
-    X,
-    Y,
-    LeftBumper,
-    RightBumper,
-    Back,
-    Start,
-    Guide,
-    LeftThumb,
-    RightThumb,
-    DPadUp,
-    DPadRight,
-    DPadDown,
-    DPadLeft,
-    Unknown(u8),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum GamepadAxis {
-    LeftX,
-    LeftY,
-    RightX,
-    RightY,
-    LeftTrigger,
-    RightTrigger,
-    Unknown(u8),
 }

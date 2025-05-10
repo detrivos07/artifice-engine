@@ -3,7 +3,6 @@
 pub mod artificeglfw;
 pub mod keyboard;
 pub mod mouse;
-pub mod gamepad;
 
 use crate::event::Event;
 use std::sync::{Arc, Mutex};
@@ -33,14 +32,6 @@ pub trait OpenGLWindow: Window {
     fn make_current(&mut self);
     fn is_current(&self) -> bool;
     fn swap_buffers(&mut self);
-}
-
-/// Trait for window creation regardless of backend
-pub trait WindowFactory {
-    type WindowType: Window;
-    
-    fn create_window(width: u32, height: u32, title: &str) -> Self::WindowType;
-    fn create_window_with_hints(width: u32, height: u32, title: &str, hints: &[WindowHint]) -> Self::WindowType;
 }
 
 /// Window hints for configuring window creation
@@ -75,12 +66,23 @@ pub trait InputDevice {
     fn is_connected(&self) -> bool;
 }
 
-pub struct Size(u32, u32);
+#[derive(Debug, Clone, Copy)]
+pub struct Size(pub u32, pub u32);
 
 impl Size {
     /// Returns the width and height of the Size.
     pub fn size(&self) -> (u32, u32) {
         (self.0, self.1)
+    }
+
+    /// Returns the width of the Size.
+    pub fn width(&self) -> u32 {
+        self.0
+    }
+
+    /// Returns the height of the Size.
+    pub fn height(&self) -> u32 {
+        self.1
     }
 }
 
@@ -106,7 +108,7 @@ impl From<Size> for (u32, u32) {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub struct Position(i32, i32);
+pub struct Position(pub i32, pub i32);
 
 impl Position {
     /// Returns the x and y coordinates of the Position.

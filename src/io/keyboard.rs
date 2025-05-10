@@ -1,5 +1,6 @@
-use crate::event::{KeyCode, KeyAction, KeyMod, KeyEvent, Event, EventType};
+use crate::event::{Event, EventType, KeyAction, KeyCode, KeyEvent, KeyMod};
 use crate::io::InputDevice;
+use logging;
 use std::collections::{HashMap, HashSet};
 
 /// Keyboard state tracking and input handling
@@ -13,6 +14,7 @@ pub struct Keyboard {
 
 impl Keyboard {
     pub fn new() -> Self {
+        logging::debug("Creating keyboard input handler");
         Keyboard {
             key_states: HashMap::new(),
             pressed_keys: HashSet::new(),
@@ -32,17 +34,22 @@ impl Keyboard {
         match action {
             KeyAction::Press => {
                 self.pressed_keys.insert(key);
-            },
+                logging::trace(&format!("Key pressed: {:?}", key));
+            }
             KeyAction::Release => {
                 self.released_keys.insert(key);
-            },
+                logging::trace(&format!("Key released: {:?}", key));
+            }
             _ => {}
         }
     }
 
     /// Check if a key is currently pressed
     pub fn is_key_pressed(&self, key: KeyCode) -> bool {
-        matches!(self.key_states.get(&key), Some(KeyAction::Press) | Some(KeyAction::Repeat))
+        matches!(
+            self.key_states.get(&key),
+            Some(KeyAction::Press) | Some(KeyAction::Repeat)
+        )
     }
 
     /// Check if a key was just pressed this frame
@@ -79,8 +86,8 @@ impl InputDevice for Keyboard {
 
 /// Helper functions for converting platform-specific key codes
 pub mod key_translation {
-    use crate::event::{KeyCode, KeyAction, KeyMod};
-    use glfw::Key;
+    use crate::event::{KeyAction, KeyCode, KeyMod};
+    use glfw::{Action, Key, Modifiers};
 
     /// Convert GLFW key to our abstracted KeyCode
     pub fn from_glfw_key(key: Key) -> KeyCode {
@@ -208,23 +215,23 @@ pub mod key_translation {
     }
 
     // Convert GLFW key action to our abstracted KeyAction
-    pub fn from_glfw_action(action: glfw::Action) -> KeyAction {
+    pub fn from_glfw_action(action: Action) -> KeyAction {
         match action {
-            glfw::Action::Press => KeyAction::Press,
-            glfw::Action::Release => KeyAction::Release,
-            glfw::Action::Repeat => KeyAction::Repeat,
+            Action::Press => KeyAction::Press,
+            Action::Release => KeyAction::Release,
+            Action::Repeat => KeyAction::Repeat,
         }
     }
 
     // Convert GLFW key mods to our abstracted KeyMod
-    pub fn from_glfw_mods(mods: glfw::Modifiers) -> KeyMod {
+    pub fn from_glfw_mods(mods: Modifiers) -> KeyMod {
         KeyMod {
-            shift: mods.contains(glfw::Modifiers::Shift),
-            control: mods.contains(glfw::Modifiers::Control),
-            alt: mods.contains(glfw::Modifiers::Alt),
-            super_key: mods.contains(glfw::Modifiers::Super),
-            caps_lock: mods.contains(glfw::Modifiers::CapsLock),
-            num_lock: mods.contains(glfw::Modifiers::NumLock),
+            shift: mods.contains(Modifiers::Shift),
+            control: mods.contains(Modifiers::Control),
+            alt: mods.contains(Modifiers::Alt),
+            super_key: mods.contains(Modifiers::Super),
+            caps_lock: mods.contains(Modifiers::CapsLock),
+            num_lock: mods.contains(Modifiers::NumLock),
         }
     }
 }

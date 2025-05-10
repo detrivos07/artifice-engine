@@ -1,5 +1,9 @@
-use crate::event::{MouseButton, KeyAction, KeyMod, MouseMoveEvent, MouseButtonEvent, MouseScrollEvent, Event, EventType};
+use crate::event::{
+    Event, EventType, KeyAction, KeyMod, MouseButton, MouseButtonEvent, MouseMoveEvent,
+    MouseScrollEvent,
+};
 use crate::io::InputDevice;
+use logging;
 use std::collections::{HashMap, HashSet};
 
 /// Mouse state tracking and input handling
@@ -16,6 +20,7 @@ pub struct Mouse {
 
 impl Mouse {
     pub fn new() -> Self {
+        logging::debug("Creating mouse input handler");
         Mouse {
             button_states: HashMap::new(),
             pressed_buttons: HashSet::new(),
@@ -37,10 +42,12 @@ impl Mouse {
         match action {
             KeyAction::Press => {
                 self.pressed_buttons.insert(button);
-            },
+                logging::trace(&format!("Mouse button pressed: {:?}", button));
+            }
             KeyAction::Release => {
                 self.released_buttons.insert(button);
-            },
+                logging::trace(&format!("Mouse button released: {:?}", button));
+            }
             _ => {}
         }
     }
@@ -51,18 +58,30 @@ impl Mouse {
         self.position = (x, y);
         self.movement = (
             self.position.0 - self.previous_position.0,
-            self.position.1 - self.previous_position.1
+            self.position.1 - self.previous_position.1,
         );
+
+        // Only log if significant movement happened
+        if self.movement.0.abs() > 0.5 || self.movement.1.abs() > 0.5 {
+            logging::trace(&format!(
+                "Mouse moved to ({:.1}, {:.1}), delta: ({:.1}, {:.1})",
+                x, y, self.movement.0, self.movement.1
+            ));
+        }
     }
 
     /// Process a mouse scroll event
     pub fn process_scroll_event(&mut self, x_offset: f64, y_offset: f64) {
         self.scroll_offset = (x_offset, y_offset);
+        logging::trace(&format!("Mouse scroll: ({:.1}, {:.1})", x_offset, y_offset));
     }
 
     /// Check if a mouse button is currently pressed
     pub fn is_button_pressed(&self, button: MouseButton) -> bool {
-        matches!(self.button_states.get(&button), Some(KeyAction::Press) | Some(KeyAction::Repeat))
+        matches!(
+            self.button_states.get(&button),
+            Some(KeyAction::Press) | Some(KeyAction::Repeat)
+        )
     }
 
     /// Check if a mouse button was just pressed this frame

@@ -1,11 +1,14 @@
+extern crate artifice_engine;
 extern crate gl;
 extern crate glfw;
-extern crate artifice_engine;
 extern crate logging;
 
 use std::ffi::CString;
 
-use artifice_engine::{Application, run_application, Event, EventType, KeyEvent, KeyCode, KeyAction};
+use artifice_engine::event::{Event, EventType, KeyAction, KeyCode, KeyEvent};
+use artifice_engine::{run_application, Application};
+use logging::Level;
+
 pub struct TestApplication {
     vertex_array: u32,
     vertex_buffer: u32,
@@ -24,13 +27,14 @@ impl Application for TestApplication {
     }
 
     fn on_init(&mut self) {
+        logging::set_log_level(Level::DEBUG);
         logging::info("TestApplication initialized!");
 
         // Define vertex data for a triangle
         let vertices: [f32; 9] = [
-            0.0, 0.5, 0.0,   // top
+            0.0, 0.5, 0.0, // top
             -0.5, -0.5, 0.0, // bottom left
-            0.5, -0.5, 0.0,  // bottom right
+            0.5, -0.5, 0.0, // bottom right
         ];
 
         // Set up OpenGL objects
@@ -121,11 +125,18 @@ impl Application for TestApplication {
             self.vertex_buffer = vbo;
             self.shader_program = shader_program;
         }
+
+        logging::info("OpenGL initialized successfully");
     }
 
     fn on_update(&mut self, delta_time: f32) {
         // Update rotation
         self.rotation += delta_time * 0.5;
+
+        // Keep rotation within 0-2π
+        if self.rotation > std::f32::consts::TAU {
+            self.rotation -= std::f32::consts::TAU;
+        }
     }
 
     fn on_render(&mut self) {
@@ -136,11 +147,12 @@ impl Application for TestApplication {
 
             // Draw the triangle
             gl::UseProgram(self.shader_program);
-            
+
             // Set rotation uniform
-            let rotation_loc = gl::GetUniformLocation(self.shader_program, CString::new("rotation").unwrap().as_ptr());
+            let rotation_name = CString::new("rotation").unwrap();
+            let rotation_loc = gl::GetUniformLocation(self.shader_program, rotation_name.as_ptr());
             gl::Uniform1f(rotation_loc, self.rotation);
-            
+
             gl::BindVertexArray(self.vertex_array);
             gl::DrawArrays(gl::TRIANGLES, 0, 3);
         }
@@ -166,8 +178,14 @@ impl Application for TestApplication {
                     self.rotation = 0.0;
                     logging::info("Rotation reset!");
                     event.mark_handled();
+                } else if key_event.key == KeyCode::Escape && key_event.action == KeyAction::Press {
+                    // Log escape key press
+                    logging::info("Escape key pressed - closing application");
                 }
             }
+        } else if event.event_type == EventType::Window {
+            // Log window events at debug level
+            logging::debug(&format!("Window event: {:?}", event.data));
         }
     }
 
@@ -177,8 +195,12 @@ impl Application for TestApplication {
 }
 
 fn main() {
+    logging::init();
     logging::info("Program has started!");
+
+    // Run the application
     run_application::<TestApplication>();
+
     logging::info("Program has finished");
 }
 
@@ -219,5 +241,3 @@ unsafe fn check_program_linking(program: u32) {
         logging::error(&format!("Program linking failed: {}", log_str));
     }
 }
-
-// Duplicate functions removed as they already exist above
