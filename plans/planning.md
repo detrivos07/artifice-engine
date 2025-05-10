@@ -12,7 +12,7 @@
 - App Framework
   - Used to build the application
   - handles event loop
-- Simple Logger
+- Simple Logger~~
 
 FINAL GOAL: Have an application be able to run and respond to both mouse and keyboard events.
 

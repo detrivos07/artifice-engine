@@ -1,8 +1,12 @@
 #![allow(unused)]
 
 pub mod artificeglfw;
-mod button;
-mod keyboard;
+pub mod keyboard;
+pub mod mouse;
+pub mod gamepad;
+
+use crate::event::Event;
+use std::sync::{Arc, Mutex};
 
 /// Trait representing a window.
 ///
@@ -19,11 +23,56 @@ pub trait Window {
     fn set_size(&mut self, size: Size);
     fn size(&self) -> &Size;
     fn title(&self) -> &str;
+    fn set_title(&mut self, title: &str);
+    fn get_event_callback(&self) -> Option<Arc<Mutex<dyn FnMut(Event) + Send + 'static>>>;
+    fn set_event_callback(&mut self, callback: Arc<Mutex<dyn FnMut(Event) + Send + 'static>>);
 }
 
+/// Extends the Window trait with OpenGL-specific functionality.
 pub trait OpenGLWindow: Window {
-    fn is_current(&self) -> bool;
     fn make_current(&mut self);
+    fn is_current(&self) -> bool;
+    fn swap_buffers(&mut self);
+}
+
+/// Trait for window creation regardless of backend
+pub trait WindowFactory {
+    type WindowType: Window;
+    
+    fn create_window(width: u32, height: u32, title: &str) -> Self::WindowType;
+    fn create_window_with_hints(width: u32, height: u32, title: &str, hints: &[WindowHint]) -> Self::WindowType;
+}
+
+/// Window hints for configuring window creation
+#[derive(Debug, Clone)]
+pub enum WindowHint {
+    Resizable(bool),
+    Visible(bool),
+    Decorated(bool),
+    Focused(bool),
+    AutoIconify(bool),
+    Floating(bool),
+    Maximized(bool),
+    Transparent(bool),
+    Samples(u32),
+    DoubleBuffer(bool),
+    RefreshRate(u32),
+    ContextVersion(u32, u32),
+    OpenGLProfile(OpenGLProfile),
+    OpenGLForwardCompat(bool),
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum OpenGLProfile {
+    Any,
+    Core,
+    Compatibility,
+}
+
+/// Input device trait for common functionality
+pub trait InputDevice {
+    fn update(&mut self);
+    fn is_connected(&self) -> bool;
 }
 
 pub struct Size(u32, u32);

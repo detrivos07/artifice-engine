@@ -1,431 +1,230 @@
-/// Represents a key on the keyboard.
-/// Keycodes follow the GLFW keycodes <https://www.glfw.org/docs/3.3/group__keys.html>
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum Key {
-    Space = 32,
-    Apostrophe = 39,
-    Comma = 44,
-    Minus = 45,
-    Period = 46,
-    Slash = 47,
+use crate::event::{KeyCode, KeyAction, KeyMod, KeyEvent, Event, EventType};
+use crate::io::InputDevice;
+use std::collections::{HashMap, HashSet};
 
-    Num0 = 48,
-    Num1 = 49,
-    Num2 = 50,
-    Num3 = 51,
-    Num4 = 52,
-    Num5 = 53,
-    Num6 = 54,
-    Num7 = 55,
-    Num8 = 56,
-    Num9 = 57,
-
-    Semicolon = 59,
-    Equal = 61,
-
-    A = 65,
-    B = 66,
-    C = 67,
-    D = 68,
-    E = 69,
-    F = 70,
-    G = 71,
-    H = 72,
-    I = 73,
-    J = 74,
-    K = 75,
-    L = 76,
-    M = 77,
-    N = 78,
-    O = 79,
-    P = 80,
-    Q = 81,
-    R = 82,
-    S = 83,
-    T = 84,
-    U = 85,
-    V = 86,
-    W = 87,
-    X = 88,
-    Y = 89,
-    Z = 90,
-
-    LeftBracket = 91,
-    Backslash = 92,
-    RightBracket = 93,
-    GraveAccent = 96,
-
-    // Function keys
-    Escape = 256,
-    Enter = 257,
-    Tab = 258,
-    Backspace = 259,
-    Insert = 260,
-    Delete = 261,
-    Right = 262,
-    Left = 263,
-    Down = 264,
-    Up = 265,
-    PageUp = 266,
-    PageDown = 267,
-    Home = 268,
-    End = 269,
-    CapsLock = 280,
-    ScrollLock = 281,
-    NumLock = 282,
-    PrintScreen = 283,
-    Pause = 284,
-
-    F1 = 290,
-    F2 = 291,
-    F3 = 292,
-    F4 = 293,
-    F5 = 294,
-    F6 = 295,
-    F7 = 296,
-    F8 = 297,
-    F9 = 298,
-    F10 = 299,
-    F11 = 300,
-    F12 = 301,
-    F13 = 302,
-    F14 = 303,
-    F15 = 304,
-    F16 = 305,
-    F17 = 306,
-    F18 = 307,
-    F19 = 308,
-    F20 = 309,
-    F21 = 310,
-    F22 = 311,
-    F23 = 312,
-    F24 = 313,
-    F25 = 314,
-
-    Kp0 = 320,
-    Kp1 = 321,
-    Kp2 = 322,
-    Kp3 = 323,
-    Kp4 = 324,
-    Kp5 = 325,
-    Kp6 = 326,
-    Kp7 = 327,
-    Kp8 = 328,
-    Kp9 = 329,
-    KpDecimal = 330,
-    KpDivide = 331,
-    KpMultiply = 332,
-    KpSubtract = 333,
-    KpAdd = 334,
-    KpEnter = 335,
-    KpEqual = 336,
-
-    LeftShift = 340,
-    LeftControl = 341,
-    LeftAlt = 342,
-    LeftSuper = 343,
-    RightShift = 344,
-    RightControl = 345,
-    RightAlt = 346,
-    RightSuper = 347,
-    Menu = 348,
-
-    World1 = 161, // non-US #1
-    World2 = 162, // non-US #2
-
-    Unknown = -1,
+/// Keyboard state tracking and input handling
+pub struct Keyboard {
+    key_states: HashMap<KeyCode, KeyAction>,
+    pressed_keys: HashSet<KeyCode>,
+    released_keys: HashSet<KeyCode>,
+    key_mods: KeyMod,
+    is_connected: bool,
 }
 
-impl Key {
-    /// Returns the GLFW key code corresponding to this Key enum.
-    ///
-    /// # Returns
-    ///
-    /// The GLFW key code corresponding to this Key enum
-    fn code(&self) -> i32 {
-        *self as i32
-    }
-}
-
-impl From<i32> for Key {
-    /// Converts a GLFW key code to the corresponding Key enum.
-    ///
-    /// # Arguments
-    ///
-    /// * `glfw_key_code` - The GLFW key code to convert
-    ///
-    /// # Returns
-    ///
-    /// The corresponding Key enum, or Key::Unknown if no match is found
-    fn from(glfw_key_code: i32) -> Self {
-        match glfw_key_code {
-            32 => Key::Space,
-            39 => Key::Apostrophe,
-            44 => Key::Comma,
-            45 => Key::Minus,
-            46 => Key::Period,
-            47 => Key::Slash,
-            48 => Key::Num0,
-            49 => Key::Num1,
-            50 => Key::Num2,
-            51 => Key::Num3,
-            52 => Key::Num4,
-            53 => Key::Num5,
-            54 => Key::Num6,
-            55 => Key::Num7,
-            56 => Key::Num8,
-            57 => Key::Num9,
-            59 => Key::Semicolon,
-            61 => Key::Equal,
-            65 => Key::A,
-            66 => Key::B,
-            67 => Key::C,
-            68 => Key::D,
-            69 => Key::E,
-            70 => Key::F,
-            71 => Key::G,
-            72 => Key::H,
-            73 => Key::I,
-            74 => Key::J,
-            75 => Key::K,
-            76 => Key::L,
-            77 => Key::M,
-            78 => Key::N,
-            79 => Key::O,
-            80 => Key::P,
-            81 => Key::Q,
-            82 => Key::R,
-            83 => Key::S,
-            84 => Key::T,
-            85 => Key::U,
-            86 => Key::V,
-            87 => Key::W,
-            88 => Key::X,
-            89 => Key::Y,
-            90 => Key::Z,
-            91 => Key::LeftBracket,
-            92 => Key::Backslash,
-            93 => Key::RightBracket,
-            96 => Key::GraveAccent,
-            256 => Key::Escape,
-            257 => Key::Enter,
-            258 => Key::Tab,
-            259 => Key::Backspace,
-            260 => Key::Insert,
-            261 => Key::Delete,
-            262 => Key::Right,
-            263 => Key::Left,
-            264 => Key::Down,
-            265 => Key::Up,
-            266 => Key::PageUp,
-            267 => Key::PageDown,
-            268 => Key::Home,
-            269 => Key::End,
-            280 => Key::CapsLock,
-            281 => Key::ScrollLock,
-            282 => Key::NumLock,
-            283 => Key::PrintScreen,
-            284 => Key::Pause,
-            290 => Key::F1,
-            291 => Key::F2,
-            292 => Key::F3,
-            293 => Key::F4,
-            294 => Key::F5,
-            295 => Key::F6,
-            296 => Key::F7,
-            297 => Key::F8,
-            298 => Key::F9,
-            299 => Key::F10,
-            300 => Key::F11,
-            301 => Key::F12,
-            302 => Key::F13,
-            303 => Key::F14,
-            304 => Key::F15,
-            305 => Key::F16,
-            306 => Key::F17,
-            307 => Key::F18,
-            308 => Key::F19,
-            309 => Key::F20,
-            310 => Key::F21,
-            311 => Key::F22,
-            312 => Key::F23,
-            313 => Key::F24,
-            314 => Key::F25,
-            320 => Key::Kp0,
-            321 => Key::Kp1,
-            322 => Key::Kp2,
-            323 => Key::Kp3,
-            324 => Key::Kp4,
-            325 => Key::Kp5,
-            326 => Key::Kp6,
-            327 => Key::Kp7,
-            328 => Key::Kp8,
-            329 => Key::Kp9,
-            330 => Key::KpDecimal,
-            331 => Key::KpDivide,
-            332 => Key::KpMultiply,
-            333 => Key::KpSubtract,
-            334 => Key::KpAdd,
-            335 => Key::KpEnter,
-            336 => Key::KpEqual,
-            340 => Key::LeftShift,
-            341 => Key::LeftControl,
-            342 => Key::LeftAlt,
-            343 => Key::LeftSuper,
-            344 => Key::RightShift,
-            345 => Key::RightControl,
-            346 => Key::RightAlt,
-            347 => Key::RightSuper,
-            348 => Key::Menu,
-            161 => Key::World1,
-            162 => Key::World2,
-            _ => Key::Unknown,
+impl Keyboard {
+    pub fn new() -> Self {
+        Keyboard {
+            key_states: HashMap::new(),
+            pressed_keys: HashSet::new(),
+            released_keys: HashSet::new(),
+            key_mods: KeyMod::new(),
+            is_connected: true,
         }
     }
-}
 
-impl From<Key> for i32 {
-    fn from(key: Key) -> Self {
-        key.code()
+    /// Process a key event and update internal state
+    pub fn process_key_event(&mut self, key: KeyCode, action: KeyAction, mods: KeyMod) {
+        // Update the key state
+        self.key_states.insert(key, action);
+        self.key_mods = mods;
+
+        // Track pressed and released keys for this frame
+        match action {
+            KeyAction::Press => {
+                self.pressed_keys.insert(key);
+            },
+            KeyAction::Release => {
+                self.released_keys.insert(key);
+            },
+            _ => {}
+        }
+    }
+
+    /// Check if a key is currently pressed
+    pub fn is_key_pressed(&self, key: KeyCode) -> bool {
+        matches!(self.key_states.get(&key), Some(KeyAction::Press) | Some(KeyAction::Repeat))
+    }
+
+    /// Check if a key was just pressed this frame
+    pub fn is_key_just_pressed(&self, key: KeyCode) -> bool {
+        self.pressed_keys.contains(&key)
+    }
+
+    /// Check if a key was just released this frame
+    pub fn is_key_just_released(&self, key: KeyCode) -> bool {
+        self.released_keys.contains(&key)
+    }
+
+    /// Get the current key modifiers state
+    pub fn get_key_mods(&self) -> &KeyMod {
+        &self.key_mods
+    }
+
+    /// Clear the per-frame state (called at the end of each frame)
+    pub fn clear_frame_state(&mut self) {
+        self.pressed_keys.clear();
+        self.released_keys.clear();
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::Key;
+impl InputDevice for Keyboard {
+    fn update(&mut self) {
+        self.clear_frame_state();
+    }
 
-    #[test]
-    fn test_key_values() {
-        // Create a vector of all Key variants
-        let keys = vec![
-            Key::Space,
-            Key::Apostrophe,
-            Key::Comma,
-            Key::Minus,
-            Key::Period,
-            Key::Slash,
-            Key::Num0,
-            Key::Num1,
-            Key::Num2,
-            Key::Num3,
-            Key::Num4,
-            Key::Num5,
-            Key::Num6,
-            Key::Num7,
-            Key::Num8,
-            Key::Num9,
-            Key::Semicolon,
-            Key::Equal,
-            Key::A,
-            Key::B,
-            Key::C,
-            Key::D,
-            Key::E,
-            Key::F,
-            Key::G,
-            Key::H,
-            Key::I,
-            Key::J,
-            Key::K,
-            Key::L,
-            Key::M,
-            Key::N,
-            Key::O,
-            Key::P,
-            Key::Q,
-            Key::R,
-            Key::S,
-            Key::T,
-            Key::U,
-            Key::V,
-            Key::W,
-            Key::X,
-            Key::Y,
-            Key::Z,
-            Key::LeftBracket,
-            Key::Backslash,
-            Key::RightBracket,
-            Key::GraveAccent,
-            Key::Escape,
-            Key::Enter,
-            Key::Tab,
-            Key::Backspace,
-            Key::Insert,
-            Key::Delete,
-            Key::Right,
-            Key::Left,
-            Key::Down,
-            Key::Up,
-            Key::PageUp,
-            Key::PageDown,
-            Key::Home,
-            Key::End,
-            Key::CapsLock,
-            Key::ScrollLock,
-            Key::NumLock,
-            Key::PrintScreen,
-            Key::Pause,
-            Key::F1,
-            Key::F2,
-            Key::F3,
-            Key::F4,
-            Key::F5,
-            Key::F6,
-            Key::F7,
-            Key::F8,
-            Key::F9,
-            Key::F10,
-            Key::F11,
-            Key::F12,
-            Key::F13,
-            Key::F14,
-            Key::F15,
-            Key::F16,
-            Key::F17,
-            Key::F18,
-            Key::F19,
-            Key::F20,
-            Key::F21,
-            Key::F22,
-            Key::F23,
-            Key::F24,
-            Key::F25,
-            Key::Kp0,
-            Key::Kp1,
-            Key::Kp2,
-            Key::Kp3,
-            Key::Kp4,
-            Key::Kp5,
-            Key::Kp6,
-            Key::Kp7,
-            Key::Kp8,
-            Key::Kp9,
-            Key::KpDecimal,
-            Key::KpDivide,
-            Key::KpMultiply,
-            Key::KpSubtract,
-            Key::KpAdd,
-            Key::KpEnter,
-            Key::KpEqual,
-            Key::LeftShift,
-            Key::LeftControl,
-            Key::LeftAlt,
-            Key::LeftSuper,
-            Key::RightShift,
-            Key::RightControl,
-            Key::RightAlt,
-            Key::RightSuper,
-            Key::Menu,
-            Key::World1,
-            Key::World2,
-            Key::Unknown,
-        ];
+    fn is_connected(&self) -> bool {
+        self.is_connected
+    }
+}
 
-        for key in keys {
-            let val: i32 = key.into();
-            let key2: Key = val.into();
+/// Helper functions for converting platform-specific key codes
+pub mod key_translation {
+    use crate::event::{KeyCode, KeyAction, KeyMod};
+    use glfw::Key;
 
-            assert_eq!(key, key2);
+    /// Convert GLFW key to our abstracted KeyCode
+    pub fn from_glfw_key(key: Key) -> KeyCode {
+        match key {
+            Key::Space => KeyCode::Space,
+            Key::Apostrophe => KeyCode::Apostrophe,
+            Key::Comma => KeyCode::Comma,
+            Key::Minus => KeyCode::Minus,
+            Key::Period => KeyCode::Period,
+            Key::Slash => KeyCode::Slash,
+            Key::Num0 => KeyCode::Num0,
+            Key::Num1 => KeyCode::Num1,
+            Key::Num2 => KeyCode::Num2,
+            Key::Num3 => KeyCode::Num3,
+            Key::Num4 => KeyCode::Num4,
+            Key::Num5 => KeyCode::Num5,
+            Key::Num6 => KeyCode::Num6,
+            Key::Num7 => KeyCode::Num7,
+            Key::Num8 => KeyCode::Num8,
+            Key::Num9 => KeyCode::Num9,
+            Key::Semicolon => KeyCode::Semicolon,
+            Key::Equal => KeyCode::Equal,
+            Key::A => KeyCode::A,
+            Key::B => KeyCode::B,
+            Key::C => KeyCode::C,
+            Key::D => KeyCode::D,
+            Key::E => KeyCode::E,
+            Key::F => KeyCode::F,
+            Key::G => KeyCode::G,
+            Key::H => KeyCode::H,
+            Key::I => KeyCode::I,
+            Key::J => KeyCode::J,
+            Key::K => KeyCode::K,
+            Key::L => KeyCode::L,
+            Key::M => KeyCode::M,
+            Key::N => KeyCode::N,
+            Key::O => KeyCode::O,
+            Key::P => KeyCode::P,
+            Key::Q => KeyCode::Q,
+            Key::R => KeyCode::R,
+            Key::S => KeyCode::S,
+            Key::T => KeyCode::T,
+            Key::U => KeyCode::U,
+            Key::V => KeyCode::V,
+            Key::W => KeyCode::W,
+            Key::X => KeyCode::X,
+            Key::Y => KeyCode::Y,
+            Key::Z => KeyCode::Z,
+            Key::LeftBracket => KeyCode::LeftBracket,
+            Key::Backslash => KeyCode::Backslash,
+            Key::RightBracket => KeyCode::RightBracket,
+            Key::GraveAccent => KeyCode::GraveAccent,
+            Key::Escape => KeyCode::Escape,
+            Key::Enter => KeyCode::Enter,
+            Key::Tab => KeyCode::Tab,
+            Key::Backspace => KeyCode::Backspace,
+            Key::Insert => KeyCode::Insert,
+            Key::Delete => KeyCode::Delete,
+            Key::Right => KeyCode::Right,
+            Key::Left => KeyCode::Left,
+            Key::Down => KeyCode::Down,
+            Key::Up => KeyCode::Up,
+            Key::PageUp => KeyCode::PageUp,
+            Key::PageDown => KeyCode::PageDown,
+            Key::Home => KeyCode::Home,
+            Key::End => KeyCode::End,
+            Key::CapsLock => KeyCode::CapsLock,
+            Key::ScrollLock => KeyCode::ScrollLock,
+            Key::NumLock => KeyCode::NumLock,
+            Key::PrintScreen => KeyCode::PrintScreen,
+            Key::Pause => KeyCode::Pause,
+            Key::F1 => KeyCode::F1,
+            Key::F2 => KeyCode::F2,
+            Key::F3 => KeyCode::F3,
+            Key::F4 => KeyCode::F4,
+            Key::F5 => KeyCode::F5,
+            Key::F6 => KeyCode::F6,
+            Key::F7 => KeyCode::F7,
+            Key::F8 => KeyCode::F8,
+            Key::F9 => KeyCode::F9,
+            Key::F10 => KeyCode::F10,
+            Key::F11 => KeyCode::F11,
+            Key::F12 => KeyCode::F12,
+            Key::F13 => KeyCode::F13,
+            Key::F14 => KeyCode::F14,
+            Key::F15 => KeyCode::F15,
+            Key::F16 => KeyCode::F16,
+            Key::F17 => KeyCode::F17,
+            Key::F18 => KeyCode::F18,
+            Key::F19 => KeyCode::F19,
+            Key::F20 => KeyCode::F20,
+            Key::F21 => KeyCode::F21,
+            Key::F22 => KeyCode::F22,
+            Key::F23 => KeyCode::F23,
+            Key::F24 => KeyCode::F24,
+            Key::F25 => KeyCode::F25,
+            Key::Kp0 => KeyCode::KP0,
+            Key::Kp1 => KeyCode::KP1,
+            Key::Kp2 => KeyCode::KP2,
+            Key::Kp3 => KeyCode::KP3,
+            Key::Kp4 => KeyCode::KP4,
+            Key::Kp5 => KeyCode::KP5,
+            Key::Kp6 => KeyCode::KP6,
+            Key::Kp7 => KeyCode::KP7,
+            Key::Kp8 => KeyCode::KP8,
+            Key::Kp9 => KeyCode::KP9,
+            Key::KpDecimal => KeyCode::KPDecimal,
+            Key::KpDivide => KeyCode::KPDivide,
+            Key::KpMultiply => KeyCode::KPMultiply,
+            Key::KpSubtract => KeyCode::KPSubtract,
+            Key::KpAdd => KeyCode::KPAdd,
+            Key::KpEnter => KeyCode::KPEnter,
+            Key::KpEqual => KeyCode::KPEqual,
+            Key::LeftShift => KeyCode::LeftShift,
+            Key::LeftControl => KeyCode::LeftControl,
+            Key::LeftAlt => KeyCode::LeftAlt,
+            Key::LeftSuper => KeyCode::LeftSuper,
+            Key::RightShift => KeyCode::RightShift,
+            Key::RightControl => KeyCode::RightControl,
+            Key::RightAlt => KeyCode::RightAlt,
+            Key::RightSuper => KeyCode::RightSuper,
+            Key::Menu => KeyCode::Menu,
+            _ => KeyCode::Unknown,
+        }
+    }
+
+    // Convert GLFW key action to our abstracted KeyAction
+    pub fn from_glfw_action(action: glfw::Action) -> KeyAction {
+        match action {
+            glfw::Action::Press => KeyAction::Press,
+            glfw::Action::Release => KeyAction::Release,
+            glfw::Action::Repeat => KeyAction::Repeat,
+        }
+    }
+
+    // Convert GLFW key mods to our abstracted KeyMod
+    pub fn from_glfw_mods(mods: glfw::Modifiers) -> KeyMod {
+        KeyMod {
+            shift: mods.contains(glfw::Modifiers::Shift),
+            control: mods.contains(glfw::Modifiers::Control),
+            alt: mods.contains(glfw::Modifiers::Alt),
+            super_key: mods.contains(glfw::Modifiers::Super),
+            caps_lock: mods.contains(glfw::Modifiers::CapsLock),
+            num_lock: mods.contains(glfw::Modifiers::NumLock),
         }
     }
 }

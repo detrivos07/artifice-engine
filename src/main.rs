@@ -1,126 +1,184 @@
 extern crate gl;
 extern crate glfw;
+extern crate artifice_engine;
+extern crate logging;
 
-mod io;
+use std::ffi::CString;
 
-use crate::io::{artificeglfw::GlfwWindow, Window};
+use artifice_engine::{Application, run_application, Event, EventType, KeyEvent, KeyCode, KeyAction};
+pub struct TestApplication {
+    vertex_array: u32,
+    vertex_buffer: u32,
+    shader_program: u32,
+    rotation: f32,
+}
 
-fn main() {
-    logging::info("Program has started!");
-    let mut window = GlfwWindow::new(800, 600, "Artfice Engine V0.0.0");
+impl Application for TestApplication {
+    fn new() -> Self {
+        TestApplication {
+            vertex_array: 0,
+            vertex_buffer: 0,
+            shader_program: 0,
+            rotation: 0.0,
+        }
+    }
 
-    // Define vertex data for a triangle
-    let vertices: [f32; 9] = [
-        0.0, 0.5, 0.0, // top
-        -0.5, -0.5, 0.0, // bottom left
-        0.5, -0.5, 0.0, // bottom right
-    ];
+    fn on_init(&mut self) {
+        logging::info("TestApplication initialized!");
 
-    // Set up OpenGL objects
-    let (vertex_array, vertex_buffer, shader_program) = unsafe {
-        // Create a vertex array object
-        let mut vao = 0;
-        gl::GenVertexArrays(1, &mut vao);
-        gl::BindVertexArray(vao);
+        // Define vertex data for a triangle
+        let vertices: [f32; 9] = [
+            0.0, 0.5, 0.0,   // top
+            -0.5, -0.5, 0.0, // bottom left
+            0.5, -0.5, 0.0,  // bottom right
+        ];
 
-        // Create a vertex buffer object
-        let mut vbo = 0;
-        gl::GenBuffers(1, &mut vbo);
-        gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
-        gl::BufferData(
-            gl::ARRAY_BUFFER,
-            (vertices.len() * std::mem::size_of::<f32>()) as isize,
-            vertices.as_ptr() as *const _,
-            gl::STATIC_DRAW,
-        );
+        // Set up OpenGL objects
+        unsafe {
+            // Create a vertex array object
+            let mut vao = 0;
+            gl::GenVertexArrays(1, &mut vao);
+            gl::BindVertexArray(vao);
 
-        // Configure vertex attributes
-        gl::VertexAttribPointer(
-            0,
-            3,
-            gl::FLOAT,
-            gl::FALSE,
-            (3 * std::mem::size_of::<f32>()) as i32,
-            std::ptr::null(),
-        );
-        gl::EnableVertexAttribArray(0);
+            // Create a vertex buffer object
+            let mut vbo = 0;
+            gl::GenBuffers(1, &mut vbo);
+            gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
+            gl::BufferData(
+                gl::ARRAY_BUFFER,
+                (vertices.len() * std::mem::size_of::<f32>()) as isize,
+                vertices.as_ptr() as *const _,
+                gl::STATIC_DRAW,
+            );
 
-        // Create and compile the vertex shader
-        let vertex_shader = gl::CreateShader(gl::VERTEX_SHADER);
-        let vertex_shader_source = std::ffi::CString::new(
-            "#version 330 core
-            layout (location = 0) in vec3 aPos;
+            // Configure vertex attributes
+            gl::VertexAttribPointer(
+                0,
+                3,
+                gl::FLOAT,
+                gl::FALSE,
+                (3 * std::mem::size_of::<f32>()) as i32,
+                std::ptr::null(),
+            );
+            gl::EnableVertexAttribArray(0);
 
-            void main() {
-                gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);
-            }",
-        )
-        .unwrap();
-        gl::ShaderSource(
-            vertex_shader,
-            1,
-            &vertex_shader_source.as_ptr(),
-            std::ptr::null(),
-        );
-        gl::CompileShader(vertex_shader);
-        check_shader_compilation(vertex_shader);
+            // Create and compile the vertex shader
+            let vertex_shader = gl::CreateShader(gl::VERTEX_SHADER);
+            let vertex_shader_source = CString::new(
+                "#version 330 core
+                layout (location = 0) in vec3 aPos;
+                uniform float rotation;
 
-        // Create and compile the fragment shader
-        let fragment_shader = gl::CreateShader(gl::FRAGMENT_SHADER);
-        let fragment_shader_source = std::ffi::CString::new(
-            "#version 330 core
-            out vec4 FragColor;
+                void main() {
+                    float angle = rotation;
+                    float x = aPos.x * cos(angle) - aPos.y * sin(angle);
+                    float y = aPos.x * sin(angle) + aPos.y * cos(angle);
+                    gl_Position = vec4(x, y, aPos.z, 1.0);
+                }",
+            )
+            .unwrap();
+            gl::ShaderSource(
+                vertex_shader,
+                1,
+                &vertex_shader_source.as_ptr(),
+                std::ptr::null(),
+            );
+            gl::CompileShader(vertex_shader);
+            check_shader_compilation(vertex_shader);
 
-            void main() {
-                FragColor = vec4(1.0, 0.5, 0.2, 1.0);
-            }",
-        )
-        .unwrap();
-        gl::ShaderSource(
-            fragment_shader,
-            1,
-            &fragment_shader_source.as_ptr(),
-            std::ptr::null(),
-        );
-        gl::CompileShader(fragment_shader);
-        check_shader_compilation(fragment_shader);
+            // Create and compile the fragment shader
+            let fragment_shader = gl::CreateShader(gl::FRAGMENT_SHADER);
+            let fragment_shader_source = CString::new(
+                "#version 330 core
+                out vec4 FragColor;
 
-        // Create and link the shader program
-        let shader_program = gl::CreateProgram();
-        gl::AttachShader(shader_program, vertex_shader);
-        gl::AttachShader(shader_program, fragment_shader);
-        gl::LinkProgram(shader_program);
-        check_program_linking(shader_program);
+                void main() {
+                    FragColor = vec4(1.0, 0.5, 0.2, 1.0);
+                }",
+            )
+            .unwrap();
+            gl::ShaderSource(
+                fragment_shader,
+                1,
+                &fragment_shader_source.as_ptr(),
+                std::ptr::null(),
+            );
+            gl::CompileShader(fragment_shader);
+            check_shader_compilation(fragment_shader);
 
-        // Delete the shaders as they're linked into the program and no longer needed
-        gl::DeleteShader(vertex_shader);
-        gl::DeleteShader(fragment_shader);
+            // Create and link the shader program
+            let shader_program = gl::CreateProgram();
+            gl::AttachShader(shader_program, vertex_shader);
+            gl::AttachShader(shader_program, fragment_shader);
+            gl::LinkProgram(shader_program);
+            check_program_linking(shader_program);
 
-        (vao, vbo, shader_program)
-    };
+            // Delete the shaders as they're linked into the program and no longer needed
+            gl::DeleteShader(vertex_shader);
+            gl::DeleteShader(fragment_shader);
 
-    // Main render loop
-    while !window.should_close() {
-        window.update();
+            self.vertex_array = vao;
+            self.vertex_buffer = vbo;
+            self.shader_program = shader_program;
+        }
+    }
 
+    fn on_update(&mut self, delta_time: f32) {
+        // Update rotation
+        self.rotation += delta_time * 0.5;
+    }
+
+    fn on_render(&mut self) {
         // Render
         unsafe {
             gl::ClearColor(0.2, 0.3, 0.3, 1.0);
             gl::Clear(gl::COLOR_BUFFER_BIT);
 
             // Draw the triangle
-            gl::UseProgram(shader_program);
-            gl::BindVertexArray(vertex_array);
+            gl::UseProgram(self.shader_program);
+            
+            // Set rotation uniform
+            let rotation_loc = gl::GetUniformLocation(self.shader_program, CString::new("rotation").unwrap().as_ptr());
+            gl::Uniform1f(rotation_loc, self.rotation);
+            
+            gl::BindVertexArray(self.vertex_array);
             gl::DrawArrays(gl::TRIANGLES, 0, 3);
         }
     }
 
-    // Clean up
-    unsafe {
-        gl::DeleteVertexArrays(1, &vertex_array);
-        gl::DeleteBuffers(1, &vertex_buffer);
-        gl::DeleteProgram(shader_program);
+    fn on_shutdown(&mut self) {
+        // Clean up
+        unsafe {
+            gl::DeleteVertexArrays(1, &self.vertex_array);
+            gl::DeleteBuffers(1, &self.vertex_buffer);
+            gl::DeleteProgram(self.shader_program);
+        }
+        logging::info("TestApplication shutdown complete!");
     }
+
+    fn on_event(&mut self, event: &mut Event) {
+        // Check if the event is a keyboard event
+        if event.event_type == EventType::Keyboard {
+            // Try to get the keyboard event data
+            if let Some(key_event) = event.get_data::<KeyEvent>() {
+                if key_event.key == KeyCode::R && key_event.action == KeyAction::Press {
+                    // Reset rotation on R key press
+                    self.rotation = 0.0;
+                    logging::info("Rotation reset!");
+                    event.mark_handled();
+                }
+            }
+        }
+    }
+
+    fn get_name(&self) -> &str {
+        "Artifice Engine Demo"
+    }
+}
+
+fn main() {
+    logging::info("Program has started!");
+    run_application::<TestApplication>();
     logging::info("Program has finished");
 }
 
@@ -139,7 +197,7 @@ unsafe fn check_shader_compilation(shader: u32) {
             log.as_mut_ptr() as *mut i8,
         );
         let log_str = std::str::from_utf8(&log).unwrap_or("Unknown error");
-        println!("Shader compilation failed: {}", log_str);
+        logging::error(&format!("Shader compilation failed: {}", log_str));
     }
 }
 
@@ -158,6 +216,8 @@ unsafe fn check_program_linking(program: u32) {
             log.as_mut_ptr() as *mut i8,
         );
         let log_str = std::str::from_utf8(&log).unwrap_or("Unknown error");
-        println!("Program linking failed: {}", log_str);
+        logging::error(&format!("Program linking failed: {}", log_str));
     }
 }
+
+// Duplicate functions removed as they already exist above
