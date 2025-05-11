@@ -5,7 +5,10 @@ extern crate logging;
 
 use std::ffi::CString;
 
-use artifice_engine::event::{Event, EventType, KeyAction, KeyCode, KeyEvent};
+use artifice_engine::event::{
+    Event, EventType, KeyAction, KeyCode, KeyEvent, MouseButtonEvent, MouseMoveEvent,
+    MouseScrollEvent,
+};
 use artifice_engine::{run_application, Application};
 use logging::Level;
 
@@ -169,23 +172,68 @@ impl Application for TestApplication {
     }
 
     fn event(&mut self, event: &mut Event) {
-        // Check if the event is a keyboard event
-        if event.event_type == EventType::Keyboard {
-            // Try to get the keyboard event data
-            if let Some(key_event) = event.get_data::<KeyEvent>() {
-                if key_event.key == KeyCode::R && key_event.action == KeyAction::Press {
-                    // Reset rotation on R key press
-                    self.rotation = 0.0;
-                    logging::info("Rotation reset!");
-                    event.mark_handled();
-                } else if key_event.key == KeyCode::Escape && key_event.action == KeyAction::Press {
-                    // Log escape key press
-                    logging::info("Escape key pressed - closing application");
+        match event.event_type {
+            EventType::Keyboard => {
+                if let Some(key_event) = event.get_data::<KeyEvent>() {
+                    let action_str = match key_event.action {
+                        KeyAction::Press => "pressed",
+                        KeyAction::Release => "released",
+                        KeyAction::Repeat => "repeated",
+                    };
+
+                    logging::info(&format!("Key {:?} {}", key_event.key, action_str));
+
+                    // Special handling for specific keys
+                    if key_event.key == KeyCode::R && key_event.action == KeyAction::Press {
+                        // Reset rotation on R key press
+                        self.rotation = 0.0;
+                        logging::info("Rotation reset!");
+                        event.mark_handled();
+                    } else if key_event.key == KeyCode::Escape
+                        && key_event.action == KeyAction::Press
+                    {
+                        // Log escape key press
+                        logging::info("Escape key pressed - closing application");
+                    }
                 }
             }
-        } else if event.event_type == EventType::Window {
-            // Log window events at debug level
-            logging::debug(&format!("Window event: {:?}", event.data));
+            EventType::Mouse => {
+                // Handle mouse button events
+                if let Some(button_event) = event.get_data::<MouseButtonEvent>() {
+                    let action_str = match button_event.action {
+                        KeyAction::Press => "pressed",
+                        KeyAction::Release => "released",
+                        KeyAction::Repeat => "held",
+                    };
+
+                    logging::info(&format!(
+                        "Mouse button {:?} {}",
+                        button_event.button, action_str
+                    ));
+                }
+                // Handle mouse move events
+                else if let Some(move_event) = event.get_data::<MouseMoveEvent>() {
+                    // Log only when significant movement happens to avoid spam
+                    if (move_event.x % 50.0 < 1.0) || (move_event.y % 50.0 < 1.0) {
+                        logging::debug(&format!(
+                            "Mouse moved to position: ({:.1}, {:.1})",
+                            move_event.x, move_event.y
+                        ));
+                    }
+                }
+                // Handle mouse scroll events
+                else if let Some(scroll_event) = event.get_data::<MouseScrollEvent>() {
+                    logging::info(&format!(
+                        "Mouse scroll: x_offset={:.1}, y_offset={:.1}",
+                        scroll_event.x_offset, scroll_event.y_offset
+                    ));
+                }
+            }
+            EventType::Window => {
+                // Log window events at debug level
+                logging::debug(&format!("Window event: {:?}", event.data));
+            }
+            _ => {}
         }
     }
 
