@@ -1,4 +1,4 @@
-use logging;
+use logging::*;
 use std::any::Any;
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -199,17 +199,14 @@ pub struct EventDispatcher {
 
 impl EventDispatcher {
     pub fn new() -> Self {
-        logging::debug("Creating event dispatcher");
+        debug!("Creating event dispatcher");
         EventDispatcher {
             handlers: HashMap::new(),
         }
     }
 
     pub fn register_handler(&mut self, event_type: EventType, handler: Box<dyn EventHandler>) {
-        logging::debug(&format!(
-            "Registering handler for event type: {:?}",
-            event_type
-        ));
+        debug!("Registering handler for event type: {:?}", event_type);
         self.handlers
             .entry(event_type)
             .or_insert_with(Vec::new)
@@ -217,7 +214,7 @@ impl EventDispatcher {
     }
 
     pub fn dispatch_event(&mut self, event: &mut Event) {
-        logging::trace(&format!("Dispatching event: {:?}", event.event_type));
+        trace!("Dispatching event: {:?}", event.event_type);
         if let Some(handlers) = self.handlers.get_mut(&event.event_type) {
             for handler in handlers.iter_mut() {
                 handler.handle_event(event);

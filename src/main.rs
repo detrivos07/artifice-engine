@@ -10,7 +10,7 @@ use artifice_engine::event::{
     MouseScrollEvent,
 };
 use artifice_engine::{run_application, Application};
-use logging::Level;
+use logging::*;
 
 pub struct TestApplication {
     vertex_array: u32,
@@ -30,8 +30,7 @@ impl Application for TestApplication {
     }
 
     fn init(&mut self) {
-        logging::set_log_level(Level::DEBUG);
-        logging::info("TestApplication initialized!");
+        info!("TestApplication initialized!");
 
         // Define vertex data for a triangle
         let vertices: [f32; 9] = [
@@ -129,7 +128,7 @@ impl Application for TestApplication {
             self.shader_program = shader_program;
         }
 
-        logging::info("OpenGL initialized successfully");
+        info!("OpenGL initialized successfully");
     }
 
     fn update(&mut self, delta_time: f32) {
@@ -168,7 +167,7 @@ impl Application for TestApplication {
             gl::DeleteBuffers(1, &self.vertex_buffer);
             gl::DeleteProgram(self.shader_program);
         }
-        logging::info("TestApplication shutdown complete!");
+        info!("TestApplication shutdown complete!");
     }
 
     fn event(&mut self, event: &mut Event) {
@@ -181,57 +180,21 @@ impl Application for TestApplication {
                         KeyAction::Repeat => "repeated",
                     };
 
-                    logging::info(&format!("Key {:?} {}", key_event.key, action_str));
+                    info!("Key {:?} {}", key_event.key, action_str);
 
                     // Special handling for specific keys
                     if key_event.key == KeyCode::R && key_event.action == KeyAction::Press {
                         // Reset rotation on R key press
                         self.rotation = 0.0;
-                        logging::info("Rotation reset!");
+                        info!("Rotation reset!");
                         event.mark_handled();
                     } else if key_event.key == KeyCode::Escape
                         && key_event.action == KeyAction::Press
                     {
                         // Log escape key press
-                        logging::info("Escape key pressed - closing application");
+                        info!("Escape key pressed - closing application");
                     }
                 }
-            }
-            EventType::Mouse => {
-                // Handle mouse button events
-                if let Some(button_event) = event.get_data::<MouseButtonEvent>() {
-                    let action_str = match button_event.action {
-                        KeyAction::Press => "pressed",
-                        KeyAction::Release => "released",
-                        KeyAction::Repeat => "held",
-                    };
-
-                    logging::info(&format!(
-                        "Mouse button {:?} {}",
-                        button_event.button, action_str
-                    ));
-                }
-                // Handle mouse move events
-                else if let Some(move_event) = event.get_data::<MouseMoveEvent>() {
-                    // Log only when significant movement happens to avoid spam
-                    if (move_event.x % 50.0 < 1.0) || (move_event.y % 50.0 < 1.0) {
-                        logging::debug(&format!(
-                            "Mouse moved to position: ({:.1}, {:.1})",
-                            move_event.x, move_event.y
-                        ));
-                    }
-                }
-                // Handle mouse scroll events
-                else if let Some(scroll_event) = event.get_data::<MouseScrollEvent>() {
-                    logging::info(&format!(
-                        "Mouse scroll: x_offset={:.1}, y_offset={:.1}",
-                        scroll_event.x_offset, scroll_event.y_offset
-                    ));
-                }
-            }
-            EventType::Window => {
-                // Log window events at debug level
-                logging::debug(&format!("Window event: {:?}", event.data));
             }
             _ => {}
         }
@@ -244,12 +207,12 @@ impl Application for TestApplication {
 
 fn main() {
     logging::init();
-    logging::info("Program has started!");
+    info!("Program has started!");
 
     // Run the application
     run_application::<TestApplication>();
 
-    logging::info("Program has finished");
+    info!("Program has finished");
 }
 
 unsafe fn check_shader_compilation(shader: u32) {
@@ -267,7 +230,7 @@ unsafe fn check_shader_compilation(shader: u32) {
             log.as_mut_ptr() as *mut i8,
         );
         let log_str = std::str::from_utf8(&log).unwrap_or("Unknown error");
-        logging::error(&format!("Shader compilation failed: {}", log_str));
+        error!("Shader compilation failed: {}", log_str);
     }
 }
 
@@ -286,6 +249,6 @@ unsafe fn check_program_linking(program: u32) {
             log.as_mut_ptr() as *mut i8,
         );
         let log_str = std::str::from_utf8(&log).unwrap_or("Unknown error");
-        logging::error(&format!("Program linking failed: {}", log_str));
+        error!("Program linking failed: {}", log_str);
     }
 }

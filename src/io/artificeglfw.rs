@@ -1,12 +1,12 @@
-use crate::event::*;
-use crate::io::keyboard::key_translation;
-use crate::io::mouse::mouse_translation;
 ///! Artifice GLFW library
 ///!
 ///! This library provides a GLFW window and input handling for the Artifice engine.
+use crate::event::*;
+use crate::io::keyboard::key_translation;
+use crate::io::mouse::mouse_translation;
 use crate::io::*;
 use glfw::{Action, Context, GlfwReceiver, Key, WindowHint as GlfwWindowHint};
-use logging;
+use logging::*;
 use std::sync::{Arc, Mutex};
 
 // Thread-safe GLFW window implementation
@@ -22,10 +22,7 @@ pub struct GlfwWindow {
 
 impl GlfwWindow {
     pub fn new(width: u32, height: u32, title: &str) -> Self {
-        logging::info(&format!(
-            "Creating GLFW window: {} ({}x{})",
-            title, width, height
-        ));
+        info!("Creating GLFW window: {} ({}x{})", title, width, height);
 
         // Initialize GLFW
         let mut glfw = glfw::init(glfw::fail_on_errors).expect("Failed to initialize GLFW");
@@ -59,10 +56,10 @@ impl GlfwWindow {
     }
 
     pub fn with_hints(width: u32, height: u32, title: &str, hints: &[WindowHint]) -> Self {
-        logging::info(&format!(
+        info!(
             "Creating GLFW window with hints: {} ({}x{})",
             title, width, height
-        ));
+        );
 
         // Initialize GLFW
         let mut glfw = glfw::init(glfw::fail_on_errors).expect("Failed to initialize GLFW");

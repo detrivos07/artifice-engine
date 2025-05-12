@@ -1,6 +1,6 @@
 use crate::event::{Event, EventType, KeyAction, KeyCode, KeyEvent, KeyMod};
 use crate::io::InputDevice;
-use logging;
+use logging::*;
 use std::collections::{HashMap, HashSet};
 
 /// Keyboard state tracking and input handling
@@ -14,7 +14,7 @@ pub struct Keyboard {
 
 impl Keyboard {
     pub fn new() -> Self {
-        logging::debug("Creating keyboard input handler");
+        debug!("Creating keyboard input handler");
         Keyboard {
             key_states: HashMap::new(),
             pressed_keys: HashSet::new(),
@@ -34,11 +34,11 @@ impl Keyboard {
         match action {
             KeyAction::Press => {
                 self.pressed_keys.insert(key);
-                logging::trace(&format!("Key pressed: {:?}", key));
+                trace!("Key pressed: {:?}", key);
             }
             KeyAction::Release => {
                 self.released_keys.insert(key);
-                logging::trace(&format!("Key released: {:?}", key));
+                trace!("Key released: {:?}", key);
             }
             _ => {}
         }

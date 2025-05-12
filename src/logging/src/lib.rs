@@ -1,8 +1,9 @@
-//! ArtificeCore Logging Library
-//!
-//! This library provides logging functionality for Artifice-Engine applications.
+// src/logging/src/lib.rs
+use std::fs::{File, OpenOptions};
+use std::io::{self, Write};
+use std::path::Path;
 use std::sync::atomic::{AtomicU8, Ordering};
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 
 /// An enumeration representing different log levels.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -29,7 +30,7 @@ impl LogLevel {
         }
     }
 
-    /// Returns the log level as a colored string (for terminals that support ANSI color codes)
+    /// Returns the log level as a colored string
     fn as_colored_str(&self) -> String {
         match self {
             LogLevel::FATAL => format!("\x1b[1;31m{}\x1b[0m", self.as_str()), // Bold Red
@@ -47,6 +48,9 @@ static CURRENT_LOG_LEVEL: AtomicU8 = AtomicU8::new(LogLevel::INFO as u8);
 
 // Global use colors flag
 static USE_COLORS: AtomicU8 = AtomicU8::new(1); // 1 = true, 0 = false
+
+// Global log file
+static LOG_FILE: OnceLock<Mutex<Option<File>>> = OnceLock::new();
 
 // Custom logger function type
 type LoggerFn = dyn Fn(LogLevel, &str) + Send + Sync;
@@ -98,39 +102,29 @@ pub fn remove_custom_logger() {
     *custom_logger = None;
 }
 
-/// Automatically logs a fatal message with the given message.
-pub fn fatal(message: &str) {
-    log(LogLevel::FATAL, message);
+/// Initialize a log file
+pub fn init_log_file<P: AsRef<Path>>(path: P) -> io::Result<()> {
+    let file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .append(true)
+        .open(path)?;
+
+    LOG_FILE.get_or_init(|| Mutex::new(Some(file)));
+    Ok(())
 }
 
-/// Automatically logs an error message with the given message.
-pub fn error(message: &str) {
-    log(LogLevel::ERROR, message);
+/// Close the log file if it's open
+pub fn close_log_file() -> io::Result<()> {
+    if let Some(log_file) = LOG_FILE.get() {
+        let mut file_guard = log_file.lock().unwrap();
+        *file_guard = None;
+    }
+    Ok(())
 }
 
-/// Automatically logs a warning message with the given message.
-pub fn warn(message: &str) {
-    log(LogLevel::WARN, message);
-}
-
-/// Automatically logs an informational message with the given message.
-pub fn info(message: &str) {
-    log(LogLevel::INFO, message);
-}
-
-/// Automatically logs a debug message with the given message.
-pub fn debug(message: &str) {
-    log(LogLevel::DEBUG, message);
-}
-
-/// Automatically logs a trace message with the given message.
-pub fn trace(message: &str) {
-    log(LogLevel::TRACE, message);
-}
-
-/// Logging function for logging messages with a specific log level.
-/// This will format the log message with the log level, timestamp, and append the message upon that.
-fn log(level: LogLevel, message: &str) {
+/// Internal log function used by macros
+pub fn _log_internal(level: LogLevel, message: &str) {
     // Check if this log level should be output
     if level as u8 > CURRENT_LOG_LEVEL.load(Ordering::SeqCst) {
         return;
@@ -143,7 +137,7 @@ fn log(level: LogLevel, message: &str) {
         return;
     }
 
-    // Format and output the log message
+    // Format the log message
     let now = chrono::offset::Local::now();
     let level_str = if are_colors_enabled() {
         level.as_colored_str()
@@ -151,16 +145,49 @@ fn log(level: LogLevel, message: &str) {
         level.as_str().to_string()
     };
 
-    println!(
-        "[{}][{}]: {}",
+    let formatted_message = format!(
+        "[{}][{}]: {}\n",
         level_str,
         now.format("%Y-%m-%d %H:%M:%S%.3f"),
         message
     );
+
+    // Output to console
+    if are_colors_enabled() {
+        print!("{}", formatted_message);
+    } else {
+        // Remove color codes for non-color output
+        print!(
+            "[{}][{}]: {}\n",
+            level.as_str(),
+            now.format("%Y-%m-%d %H:%M:%S%.3f"),
+            message
+        );
+    }
+
+    // Output to file if enabled
+    if let Some(log_file) = LOG_FILE.get() {
+        if let Ok(mut file_guard) = log_file.lock() {
+            if let Some(file) = file_guard.as_mut() {
+                // Write without color codes to file
+                let file_message = format!(
+                    "[{}][{}]: {}\n",
+                    level.as_str(),
+                    now.format("%Y-%m-%d %H:%M:%S%.3f"),
+                    message
+                );
+                let _ = file.write_all(file_message.as_bytes());
+                let _ = file.flush();
+            }
+        }
+    }
 }
 
 /// Function to initialize the logger - called manually rather than via a feature
 pub fn init() {
+    // Initialize the log file cell
+    LOG_FILE.get_or_init(|| Mutex::new(None));
+
     // Set log level from environment variable if available
     if let Ok(level) = std::env::var("ARTIFICE_LOG_LEVEL") {
         match level.to_uppercase().as_str() {
@@ -185,6 +212,44 @@ pub fn init() {
         // Default to colors enabled
         set_colors_enabled(true);
     }
+
+    // Check for log file path in environment
+    if let Ok(log_path) = std::env::var("ARTIFICE_LOG_FILE") {
+        if !log_path.is_empty() {
+            let _ = init_log_file(log_path);
+        }
+    }
+}
+
+// Logging macros
+#[macro_export]
+macro_rules! fatal {
+    ($($arg:tt)*) => ($crate::_log_internal($crate::LogLevel::FATAL, &format!($($arg)*)));
+}
+
+#[macro_export]
+macro_rules! error {
+    ($($arg:tt)*) => ($crate::_log_internal($crate::LogLevel::ERROR, &format!($($arg)*)));
+}
+
+#[macro_export]
+macro_rules! warn {
+    ($($arg:tt)*) => ($crate::_log_internal($crate::LogLevel::WARN, &format!($($arg)*)));
+}
+
+#[macro_export]
+macro_rules! info {
+    ($($arg:tt)*) => ($crate::_log_internal($crate::LogLevel::INFO, &format!($($arg)*)));
+}
+
+#[macro_export]
+macro_rules! debug {
+    ($($arg:tt)*) => ($crate::_log_internal($crate::LogLevel::DEBUG, &format!($($arg)*)));
+}
+
+#[macro_export]
+macro_rules! trace {
+    ($($arg:tt)*) => ($crate::_log_internal($crate::LogLevel::TRACE, &format!($($arg)*)));
 }
 
 // Re-export the LogLevel for external use

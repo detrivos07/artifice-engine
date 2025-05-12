@@ -9,7 +9,7 @@ use crate::io::artificeglfw::GlfwWindow;
 use crate::io::keyboard::Keyboard;
 use crate::io::mouse::Mouse;
 use crate::io::{InputDevice, Window};
-use logging;
+use logging::*;
 
 /// The core Application trait that all applications must implement
 pub trait Application: Send + 'static {
@@ -77,7 +77,7 @@ pub struct Engine<T: Application> {
 impl<T: Application> Engine<T> {
     /// Create a new engine instance with the given application
     pub fn new(application: T) -> Self {
-        logging::info("Creating Engine instance");
+        info!("Creating Engine instance");
 
         // Create the window directly
         let window = GlfwWindow::new(800, 600, application.get_name());
@@ -96,7 +96,7 @@ impl<T: Application> Engine<T> {
 
     /// Run the application
     pub fn run(&mut self) {
-        logging::info("Engine starting");
+        info!("Engine starting");
         self.running = true;
         self.last_frame_time = Instant::now();
 
@@ -121,7 +121,7 @@ impl<T: Application> Engine<T> {
             layer.attach();
         }
 
-        logging::info("Starting main loop");
+        info!("Starting main loop");
 
         // Main loop
         while self.running && !self.window.should_close() {
@@ -207,7 +207,7 @@ impl<T: Application> Engine<T> {
             self.window.update();
         }
 
-        logging::info("Engine shutdown initiated");
+        info!("Engine shutdown initiated");
 
         // Detach layers in reverse order
         for layer in self.layers.iter_mut().rev() {
@@ -217,18 +217,18 @@ impl<T: Application> Engine<T> {
         // Shutdown the application
         self.application.shutdown();
 
-        logging::info("Engine shutdown complete");
+        info!("Engine shutdown complete");
     }
 
     /// Stop the application
     pub fn stop(&mut self) {
-        logging::info("Engine stop requested");
+        info!("Engine stop requested");
         self.running = false;
     }
 
     /// Add a layer to the application
     pub fn push_layer(&mut self, mut layer: Box<dyn Layer>) {
-        logging::debug(&format!("Adding layer: {}", layer.get_name()));
+        debug!("Adding layer: {}", layer.get_name());
         layer.attach();
         self.layers.push(layer);
     }
@@ -236,7 +236,7 @@ impl<T: Application> Engine<T> {
     /// Remove a layer from the application
     pub fn pop_layer(&mut self) {
         if let Some(mut layer) = self.layers.pop() {
-            logging::debug(&format!("Removing layer: {}", layer.get_name()));
+            debug!("Removing layer: {}", layer.get_name());
             layer.detach();
         }
     }
@@ -264,7 +264,7 @@ impl<T: Application> Engine<T> {
 
 /// Run an application
 pub fn run_application<T: Application>() {
-    logging::info("Starting application");
+    info!("Starting application");
     let app = T::new();
     let mut engine = Engine::new(app);
 
@@ -277,5 +277,5 @@ pub fn run_application<T: Application>() {
     }
 
     engine.run();
-    logging::info("Application terminated");
+    info!("Application terminated");
 }
