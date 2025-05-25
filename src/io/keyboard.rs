@@ -1,6 +1,6 @@
 use crate::event::{Event, EventType, KeyAction, KeyCode, KeyEvent, KeyMod};
 use crate::io::InputDevice;
-use logging::*;
+use logging::{debug, error, info, trace, warn};
 use std::collections::{HashMap, HashSet};
 
 /// Keyboard state tracking and input handling

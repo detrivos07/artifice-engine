@@ -1,4 +1,4 @@
-use logging::*;
+use logging::{debug, error, info, trace, warn};
 use std::any::Any;
 use std::collections::HashMap;
 use std::fmt::Debug;

@@ -10,7 +10,7 @@ use artifice_engine::event::{
     MouseScrollEvent,
 };
 use artifice_engine::{run_application, Application};
-use logging::*;
+use logging::{debug, error, info, trace, warn};
 
 pub struct TestApplication {
     vertex_array: u32,
@@ -206,7 +206,7 @@ impl Application for TestApplication {
 }
 
 fn main() {
-    logging::init();
+    logging::init_from_env().expect("Failed to initialize logger");
     info!("Program has started!");
 
     // Run the application

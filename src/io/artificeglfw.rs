@@ -6,7 +6,7 @@ use crate::io::keyboard::key_translation;
 use crate::io::mouse::mouse_translation;
 use crate::io::*;
 use glfw::{Action, Context, GlfwReceiver, Key, WindowHint as GlfwWindowHint};
-use logging::*;
+use logging::{debug, error, info, trace, warn};
 use std::sync::{Arc, Mutex};
 
 // Thread-safe GLFW window implementation

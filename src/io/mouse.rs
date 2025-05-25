@@ -3,7 +3,7 @@ use crate::event::{
     MouseScrollEvent,
 };
 use crate::io::InputDevice;
-use logging::*;
+use logging::{debug, error, info, trace, warn};
 use std::collections::{HashMap, HashSet};
 
 /// Mouse state tracking and input handling

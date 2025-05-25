@@ -1,256 +1,394 @@
-// src/logging/src/lib.rs
+use log::{Log, Metadata, Record};
 use std::fs::{File, OpenOptions};
 use std::io::{self, Write};
 use std::path::Path;
-use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::{Mutex, OnceLock};
+
+/// Custom error type for logger initialization
+#[derive(Debug)]
+pub enum LoggerError {
+    Io(io::Error),
+    SetLogger(log::SetLoggerError),
+    AlreadyInitialized,
+}
+
+impl From<io::Error> for LoggerError {
+    fn from(err: io::Error) -> Self {
+        LoggerError::Io(err)
+    }
+}
+
+impl From<log::SetLoggerError> for LoggerError {
+    fn from(err: log::SetLoggerError) -> Self {
+        LoggerError::SetLogger(err)
+    }
+}
+
+impl std::fmt::Display for LoggerError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LoggerError::Io(err) => write!(f, "IO error: {}", err),
+            LoggerError::SetLogger(err) => write!(f, "Logger setup error: {}", err),
+            LoggerError::AlreadyInitialized => write!(f, "Logger already initialized"),
+        }
+    }
+}
+
+impl std::error::Error for LoggerError {}
+
+/// Configuration for logging output destinations
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LogConfig {
+    pub console: bool,
+    pub file: bool,
+    pub colors: bool,
+}
+
+impl Default for LogConfig {
+    fn default() -> Self {
+        LogConfig {
+            console: true,
+            file: false,
+            colors: true,
+        }
+    }
+}
 
 /// An enumeration representing different log levels.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(u8)]
 pub enum LogLevel {
-    FATAL = 0,
-    ERROR = 1,
-    WARN = 2,
-    INFO = 3,
-    DEBUG = 4,
-    TRACE = 5,
+    Error = 1,
+    Warn = 2,
+    Info = 3,
+    Debug = 4,
+    Trace = 5,
 }
 
 impl LogLevel {
     /// Returns the log level as a string.
     fn as_str(&self) -> &str {
         match self {
-            LogLevel::FATAL => "FATAL",
-            LogLevel::ERROR => "ERROR",
-            LogLevel::WARN => "WARN",
-            LogLevel::INFO => "INFO",
-            LogLevel::DEBUG => "DEBUG",
-            LogLevel::TRACE => "TRACE",
+            LogLevel::Error => "ERROR",
+            LogLevel::Warn => "WARN",
+            LogLevel::Info => "INFO",
+            LogLevel::Debug => "DEBUG",
+            LogLevel::Trace => "TRACE",
         }
     }
 
     /// Returns the log level as a colored string
     fn as_colored_str(&self) -> String {
         match self {
-            LogLevel::FATAL => format!("\x1b[1;31m{}\x1b[0m", self.as_str()), // Bold Red
-            LogLevel::ERROR => format!("\x1b[31m{}\x1b[0m", self.as_str()),   // Red
-            LogLevel::WARN => format!("\x1b[33m{}\x1b[0m", self.as_str()),    // Yellow
-            LogLevel::INFO => format!("\x1b[32m{}\x1b[0m", self.as_str()),    // Green
-            LogLevel::DEBUG => format!("\x1b[36m{}\x1b[0m", self.as_str()),   // Cyan
-            LogLevel::TRACE => format!("\x1b[35m{}\x1b[0m", self.as_str()),   // Magenta
+            LogLevel::Error => format!("\x1b[31m{}\x1b[0m", self.as_str()),   // Red
+            LogLevel::Warn => format!("\x1b[33m{}\x1b[0m", self.as_str()),    // Yellow
+            LogLevel::Info => format!("\x1b[32m{}\x1b[0m", self.as_str()),    // Green
+            LogLevel::Debug => format!("\x1b[36m{}\x1b[0m", self.as_str()),   // Cyan
+            LogLevel::Trace => format!("\x1b[35m{}\x1b[0m", self.as_str()),   // Magenta
         }
     }
 }
 
-// Global current log level
-static CURRENT_LOG_LEVEL: AtomicU8 = AtomicU8::new(LogLevel::INFO as u8);
-
-// Global use colors flag
-static USE_COLORS: AtomicU8 = AtomicU8::new(1); // 1 = true, 0 = false
-
-// Global log file
-static LOG_FILE: OnceLock<Mutex<Option<File>>> = OnceLock::new();
-
-// Custom logger function type
-type LoggerFn = dyn Fn(LogLevel, &str) + Send + Sync;
-
-// Global custom logger
-static CUSTOM_LOGGER: Mutex<Option<Box<LoggerFn>>> = Mutex::new(None);
-
-/// Set the global log level
-pub fn set_log_level(level: LogLevel) {
-    CURRENT_LOG_LEVEL.store(level as u8, Ordering::SeqCst);
-}
-
-/// Get the current global log level
-pub fn get_log_level() -> LogLevel {
-    let level = CURRENT_LOG_LEVEL.load(Ordering::SeqCst);
-    match level {
-        0 => LogLevel::FATAL,
-        1 => LogLevel::ERROR,
-        2 => LogLevel::WARN,
-        3 => LogLevel::INFO,
-        4 => LogLevel::DEBUG,
-        5 => LogLevel::TRACE,
-        _ => LogLevel::INFO, // Default to INFO if unexpected value
+impl From<log::Level> for LogLevel {
+    fn from(level: log::Level) -> Self {
+        match level {
+            log::Level::Error => LogLevel::Error,
+            log::Level::Warn => LogLevel::Warn,
+            log::Level::Info => LogLevel::Info,
+            log::Level::Debug => LogLevel::Debug,
+            log::Level::Trace => LogLevel::Trace,
+        }
     }
 }
 
-/// Enable or disable colored log output
-pub fn set_colors_enabled(enabled: bool) {
-    USE_COLORS.store(if enabled { 1 } else { 0 }, Ordering::SeqCst);
-}
-
-/// Check if colors are enabled
-fn are_colors_enabled() -> bool {
-    USE_COLORS.load(Ordering::SeqCst) == 1
-}
-
-/// Set a custom logger function
-pub fn set_custom_logger<F>(logger: F)
-where
-    F: Fn(LogLevel, &str) + Send + Sync + 'static,
-{
-    let mut custom_logger = CUSTOM_LOGGER.lock().unwrap();
-    *custom_logger = Some(Box::new(logger));
-}
-
-/// Remove any custom logger
-pub fn remove_custom_logger() {
-    let mut custom_logger = CUSTOM_LOGGER.lock().unwrap();
-    *custom_logger = None;
-}
-
-/// Initialize a log file
-pub fn init_log_file<P: AsRef<Path>>(path: P) -> io::Result<()> {
-    let file = OpenOptions::new()
-        .write(true)
-        .create(true)
-        .append(true)
-        .open(path)?;
-
-    LOG_FILE.get_or_init(|| Mutex::new(Some(file)));
-    Ok(())
-}
-
-/// Close the log file if it's open
-pub fn close_log_file() -> io::Result<()> {
-    if let Some(log_file) = LOG_FILE.get() {
-        let mut file_guard = log_file.lock().unwrap();
-        *file_guard = None;
+impl From<LogLevel> for log::Level {
+    fn from(level: LogLevel) -> Self {
+        match level {
+            LogLevel::Error => log::Level::Error,
+            LogLevel::Warn => log::Level::Warn,
+            LogLevel::Info => log::Level::Info,
+            LogLevel::Debug => log::Level::Debug,
+            LogLevel::Trace => log::Level::Trace,
+        }
     }
-    Ok(())
 }
 
-/// Internal log function used by macros
-pub fn _log_internal(level: LogLevel, message: &str) {
-    // Check if this log level should be output
-    if level as u8 > CURRENT_LOG_LEVEL.load(Ordering::SeqCst) {
-        return;
+/// The main logger implementation
+pub struct ArtificeLogger {
+    config: LogConfig,
+    log_file: Mutex<Option<File>>,
+}
+
+impl ArtificeLogger {
+    pub fn new(config: LogConfig) -> Self {
+        ArtificeLogger {
+            config,
+            log_file: Mutex::new(None),
+        }
     }
 
-    // Check if we have a custom logger
-    let custom_logger = CUSTOM_LOGGER.lock().unwrap();
-    if let Some(logger) = &*custom_logger {
-        logger(level, message);
-        return;
+    pub fn with_file<P: AsRef<Path>>(mut self, path: P) -> Result<Self, LoggerError> {
+        let file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .append(true)
+            .open(path)?;
+        
+        *self.log_file.lock().unwrap() = Some(file);
+        self.config.file = true;
+        Ok(self)
     }
 
-    // Format the log message
-    let now = chrono::offset::Local::now();
-    let level_str = if are_colors_enabled() {
-        level.as_colored_str()
-    } else {
-        level.as_str().to_string()
-    };
+    pub fn set_config(&mut self, config: LogConfig) {
+        self.config = config;
+    }
 
-    let formatted_message = format!(
-        "[{}][{}]: {}\n",
-        level_str,
-        now.format("%Y-%m-%d %H:%M:%S%.3f"),
-        message
-    );
+    pub fn get_config(&self) -> LogConfig {
+        self.config
+    }
 
-    // Output to console
-    if are_colors_enabled() {
-        print!("{}", formatted_message);
-    } else {
-        // Remove color codes for non-color output
-        print!(
-            "[{}][{}]: {}\n",
-            level.as_str(),
+    fn format_message(&self, record: &Record, use_colors: bool) -> String {
+        let now = chrono::offset::Local::now();
+        let level = LogLevel::from(record.level());
+        
+        let level_str = if use_colors {
+            level.as_colored_str()
+        } else {
+            level.as_str().to_string()
+        };
+
+        let target = if record.target().is_empty() {
+            record.module_path().unwrap_or("unknown")
+        } else {
+            record.target()
+        };
+
+        format!(
+            "[{}][{}][{}]: {}",
+            level_str,
             now.format("%Y-%m-%d %H:%M:%S%.3f"),
-            message
-        );
+            target,
+            record.args()
+        )
+    }
+}
+
+impl Log for ArtificeLogger {
+    fn enabled(&self, metadata: &Metadata) -> bool {
+        metadata.level() <= log::max_level()
     }
 
-    // Output to file if enabled
-    if let Some(log_file) = LOG_FILE.get() {
-        if let Ok(mut file_guard) = log_file.lock() {
-            if let Some(file) = file_guard.as_mut() {
-                // Write without color codes to file
-                let file_message = format!(
-                    "[{}][{}]: {}\n",
-                    level.as_str(),
-                    now.format("%Y-%m-%d %H:%M:%S%.3f"),
-                    message
-                );
-                let _ = file.write_all(file_message.as_bytes());
-                let _ = file.flush();
+    fn log(&self, record: &Record) {
+        if !self.enabled(record.metadata()) {
+            return;
+        }
+
+        // Output to console
+        if self.config.console {
+            let message = self.format_message(record, self.config.colors);
+            println!("{}", message);
+        }
+
+        // Output to file
+        if self.config.file {
+            if let Ok(mut file_guard) = self.log_file.lock() {
+                if let Some(file) = file_guard.as_mut() {
+                    let message = self.format_message(record, false); // No colors in file
+                    let _ = writeln!(file, "{}", message);
+                    let _ = file.flush();
+                }
+            }
+        }
+    }
+
+    fn flush(&self) {
+        if self.config.file {
+            if let Ok(mut file_guard) = self.log_file.lock() {
+                if let Some(file) = file_guard.as_mut() {
+                    let _ = file.flush();
+                }
             }
         }
     }
 }
 
-/// Function to initialize the logger - called manually rather than via a feature
-pub fn init() {
-    // Initialize the log file cell
-    LOG_FILE.get_or_init(|| Mutex::new(None));
+// Global logger instance
+static LOGGER: OnceLock<ArtificeLogger> = OnceLock::new();
 
+/// Initialize the logger with the given configuration
+pub fn init_with_config(config: LogConfig) -> Result<(), LoggerError> {
+    let logger = ArtificeLogger::new(config);
+    LOGGER.set(logger).map_err(|_| LoggerError::AlreadyInitialized)?;
+    
+    log::set_logger(LOGGER.get().unwrap())?;
+    log::set_max_level(log::LevelFilter::Trace);
+    
+    Ok(())
+}
+
+/// Initialize the logger with console output only
+pub fn init() -> Result<(), LoggerError> {
+    init_with_config(LogConfig::default())
+}
+
+/// Initialize the logger with both console and file output
+pub fn init_with_file<P: AsRef<Path>>(path: P) -> Result<(), LoggerError> {
+    let logger = ArtificeLogger::new(LogConfig {
+        console: true,
+        file: true,
+        colors: true,
+    }).with_file(path)?;
+    
+    LOGGER.set(logger).map_err(|_| LoggerError::AlreadyInitialized)?;
+    
+    log::set_logger(LOGGER.get().unwrap())?;
+    log::set_max_level(log::LevelFilter::Trace);
+    
+    Ok(())
+}
+
+/// Set the global log level
+pub fn set_log_level(level: LogLevel) {
+    log::set_max_level(level.into());
+}
+
+/// Get the current global log level
+pub fn get_log_level() -> LogLevel {
+    log::max_level().into()
+}
+
+impl From<log::LevelFilter> for LogLevel {
+    fn from(filter: log::LevelFilter) -> Self {
+        match filter {
+            log::LevelFilter::Off => LogLevel::Error, // Default to Error if logging is off
+            log::LevelFilter::Error => LogLevel::Error,
+            log::LevelFilter::Warn => LogLevel::Warn,
+            log::LevelFilter::Info => LogLevel::Info,
+            log::LevelFilter::Debug => LogLevel::Debug,
+            log::LevelFilter::Trace => LogLevel::Trace,
+        }
+    }
+}
+
+impl From<LogLevel> for log::LevelFilter {
+    fn from(level: LogLevel) -> Self {
+        match level {
+            LogLevel::Error => log::LevelFilter::Error,
+            LogLevel::Warn => log::LevelFilter::Warn,
+            LogLevel::Info => log::LevelFilter::Info,
+            LogLevel::Debug => log::LevelFilter::Debug,
+            LogLevel::Trace => log::LevelFilter::Trace,
+        }
+    }
+}
+
+/// Initialize logger from environment variables
+pub fn init_from_env() -> Result<(), LoggerError> {
+    let mut config = LogConfig::default();
+    
     // Set log level from environment variable if available
     if let Ok(level) = std::env::var("ARTIFICE_LOG_LEVEL") {
-        match level.to_uppercase().as_str() {
-            "FATAL" => set_log_level(LogLevel::FATAL),
-            "ERROR" => set_log_level(LogLevel::ERROR),
-            "WARN" => set_log_level(LogLevel::WARN),
-            "INFO" => set_log_level(LogLevel::INFO),
-            "DEBUG" => set_log_level(LogLevel::DEBUG),
-            "TRACE" => set_log_level(LogLevel::TRACE),
-            _ => set_log_level(LogLevel::INFO),
-        }
+        let log_level = match level.to_uppercase().as_str() {
+            "ERROR" => LogLevel::Error,
+            "WARN" => LogLevel::Warn,
+            "INFO" => LogLevel::Info,
+            "DEBUG" => LogLevel::Debug,
+            "TRACE" => LogLevel::Trace,
+            _ => LogLevel::Info,
+        };
+        set_log_level(log_level);
+    }
+
+    // Configure console output
+    if let Ok(console) = std::env::var("ARTIFICE_LOG_CONSOLE") {
+        config.console = match console.to_lowercase().as_str() {
+            "true" | "1" | "yes" | "on" => true,
+            "false" | "0" | "no" | "off" => false,
+            _ => true,
+        };
     }
 
     // Enable/disable colors from environment variable if available
     if let Ok(colors) = std::env::var("ARTIFICE_LOG_COLORS") {
-        match colors.to_lowercase().as_str() {
-            "true" | "1" | "yes" | "on" => set_colors_enabled(true),
-            "false" | "0" | "no" | "off" => set_colors_enabled(false),
-            _ => set_colors_enabled(true),
-        }
-    } else {
-        // Default to colors enabled
-        set_colors_enabled(true);
+        config.colors = match colors.to_lowercase().as_str() {
+            "true" | "1" | "yes" | "on" => true,
+            "false" | "0" | "no" | "off" => false,
+            _ => true,
+        };
     }
 
     // Check for log file path in environment
     if let Ok(log_path) = std::env::var("ARTIFICE_LOG_FILE") {
         if !log_path.is_empty() {
-            let _ = init_log_file(log_path);
+            config.file = true;
+            let logger = ArtificeLogger::new(config)
+                .with_file(log_path)?;
+            
+            LOGGER.set(logger).map_err(|_| LoggerError::AlreadyInitialized)?;
+            log::set_logger(LOGGER.get().unwrap())?;
+            log::set_max_level(log::LevelFilter::Trace);
+            return Ok(());
         }
+    }
+
+    init_with_config(config)
+}
+
+/// Builder for configuring the logger
+pub struct LoggerBuilder {
+    config: LogConfig,
+    file_path: Option<String>,
+}
+
+impl LoggerBuilder {
+    pub fn new() -> Self {
+        LoggerBuilder {
+            config: LogConfig::default(),
+            file_path: None,
+        }
+    }
+
+    pub fn console(mut self, enabled: bool) -> Self {
+        self.config.console = enabled;
+        self
+    }
+
+    pub fn file<P: AsRef<Path>>(mut self, path: P) -> Self {
+        self.config.file = true;
+        self.file_path = Some(path.as_ref().to_string_lossy().into_owned());
+        self
+    }
+
+    pub fn colors(mut self, enabled: bool) -> Self {
+        self.config.colors = enabled;
+        self
+    }
+
+    pub fn init(self) -> Result<(), LoggerError> {
+        if let Some(path) = self.file_path {
+            let logger = ArtificeLogger::new(self.config)
+                .with_file(path)?;
+            
+            LOGGER.set(logger).map_err(|_| LoggerError::AlreadyInitialized)?;
+        } else {
+            let logger = ArtificeLogger::new(self.config);
+            LOGGER.set(logger).map_err(|_| LoggerError::AlreadyInitialized)?;
+        }
+        
+        log::set_logger(LOGGER.get().unwrap())?;
+        log::set_max_level(log::LevelFilter::Trace);
+        Ok(())
     }
 }
 
-// Logging macros
-#[macro_export]
-macro_rules! fatal {
-    ($($arg:tt)*) => ($crate::_log_internal($crate::LogLevel::FATAL, &format!($($arg)*)));
+impl Default for LoggerBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
-#[macro_export]
-macro_rules! error {
-    ($($arg:tt)*) => ($crate::_log_internal($crate::LogLevel::ERROR, &format!($($arg)*)));
-}
-
-#[macro_export]
-macro_rules! warn {
-    ($($arg:tt)*) => ($crate::_log_internal($crate::LogLevel::WARN, &format!($($arg)*)));
-}
-
-#[macro_export]
-macro_rules! info {
-    ($($arg:tt)*) => ($crate::_log_internal($crate::LogLevel::INFO, &format!($($arg)*)));
-}
-
-#[macro_export]
-macro_rules! debug {
-    ($($arg:tt)*) => ($crate::_log_internal($crate::LogLevel::DEBUG, &format!($($arg)*)));
-}
-
-#[macro_export]
-macro_rules! trace {
-    ($($arg:tt)*) => ($crate::_log_internal($crate::LogLevel::TRACE, &format!($($arg)*)));
-}
+// Re-export standard log macros for convenience
+pub use log::{debug, error, info, trace, warn};
 
 // Re-export the LogLevel for external use
 pub use LogLevel as Level;

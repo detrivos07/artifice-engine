@@ -3,7 +3,7 @@ name = "artificecore-logging"
 version = "0.1.0"
 edition = "2021"
 authors = ["Detrivos"]
-description = "Logging module for ArtificeCore"
+description = "Logging module for ArtificeCore - compatible with standard Rust log crate"
 
 [lib]
 name = "logging"
@@ -11,6 +11,4 @@ path = "src/lib.rs"
 
 [dependencies]
 chrono = "0.4.40"
-
-[features]
-auto_init = []
+log = "0.4.27"

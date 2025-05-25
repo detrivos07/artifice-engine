@@ -9,7 +9,7 @@ use crate::io::artificeglfw::GlfwWindow;
 use crate::io::keyboard::Keyboard;
 use crate::io::mouse::Mouse;
 use crate::io::{InputDevice, Window};
-use logging::*;
+use logging::{debug, error, info, trace, warn};
 
 /// The core Application trait that all applications must implement
 pub trait Application: Send + 'static {
