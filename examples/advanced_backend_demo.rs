@@ -15,42 +15,46 @@ use artifice_engine::io::MetricsConfig;
 use artifice_logging::{error, info, warn, debug};
 
 pub struct AdvancedBackendDemo {
-    // Rendering state
+    // OpenGL objects
     vertex_array: u32,
     vertex_buffer: u32,
     shader_program: u32,
-    
+
     // Animation state
     rotation: f32,
     scale_pulse: f32,
     color_cycle: f32,
-    
-    // Backend management
+
+    // Backend switching
     current_backend: String,
     switch_pending: Option<String>,
     switch_cooldown: f32,
     backend_switch_count: u32,
-    
-    // Visual feedback
+
+    // Color schemes for different backends
     background_colors: BackendColors,
     triangle_colors: BackendColors,
-    
+
     // Performance tracking
-    frame_count: u64,
+    frame_count: u32,
     last_fps_update: Instant,
     current_fps: f32,
-    
-    // Shader uniforms
+
+    // Shader uniform locations
     rotation_location: i32,
     scale_location: i32,
     color_location: i32,
     time_location: i32,
+
+    // OpenGL availability tracking
+    opengl_available: bool,
 }
 
 #[derive(Clone)]
 struct BackendColors {
     glfw: (f32, f32, f32),
     wayland: (f32, f32, f32),
+    x11: (f32, f32, f32),
     default: (f32, f32, f32),
 }
 
@@ -59,6 +63,7 @@ impl BackendColors {
         Self {
             glfw: (0.1, 0.2, 0.4),      // Deep blue for GLFW
             wayland: (0.2, 0.4, 0.2),   // Forest green for Wayland
+            x11: (0.4, 0.2, 0.1),       // Brown for X11
             default: (0.2, 0.2, 0.2),   // Gray for unknown
         }
     }
@@ -67,6 +72,7 @@ impl BackendColors {
         Self {
             glfw: (1.0, 0.6, 0.0),      // Orange for GLFW
             wayland: (0.8, 0.2, 0.8),   // Purple for Wayland
+            x11: (0.2, 0.8, 1.0),       // Cyan for X11
             default: (0.5, 0.5, 0.5),   // Gray for unknown
         }
     }
@@ -75,33 +81,23 @@ impl BackendColors {
         match backend {
             "glfw" => self.glfw,
             "wayland" => self.wayland,
+            "x11" => self.x11,
             _ => self.default,
         }
     }
 }
 
 pub struct BackendInfoLayer {
-    backend_name: String,
-    switch_count: u32,
-    fps: f32,
     last_update: Instant,
+    start_time: Instant,
 }
 
 impl BackendInfoLayer {
     fn new() -> Self {
         Self {
-            backend_name: "glfw".to_string(),
-            switch_count: 0,
-            fps: 0.0,
             last_update: Instant::now(),
+            start_time: Instant::now(),
         }
-    }
-    
-    fn update_info(&mut self, backend: &str, switch_count: u32, fps: f32) {
-        self.backend_name = backend.to_string();
-        self.switch_count = switch_count;
-        self.fps = fps;
-        self.last_update = Instant::now();
     }
 }
 
@@ -112,10 +108,10 @@ impl Layer for BackendInfoLayer {
     
     fn render(&mut self) {
         // In a real implementation, this would render UI elements
-        // For now, we just log periodically
-        if self.last_update.elapsed() > Duration::from_secs(2) {
-            info!("Backend: {} | Switches: {} | FPS: {:.1}", 
-                  self.backend_name, self.switch_count, self.fps);
+        // For now, we just log periodically to show the layer is active
+        if self.last_update.elapsed() > Duration::from_secs(5) {
+            let uptime = self.start_time.elapsed().as_secs();
+            info!("Info Layer Active | Uptime: {}s | Use SPACE for current status", uptime);
             self.last_update = Instant::now();
         }
     }
@@ -134,7 +130,7 @@ impl Application for AdvancedBackendDemo {
             rotation: 0.0,
             scale_pulse: 1.0,
             color_cycle: 0.0,
-            current_backend: "glfw".to_string(),
+            current_backend: "unknown".to_string(),
             switch_pending: None,
             switch_cooldown: 0.0,
             backend_switch_count: 0,
@@ -147,11 +143,20 @@ impl Application for AdvancedBackendDemo {
             scale_location: -1,
             color_location: -1,
             time_location: -1,
+            opengl_available: false,
         }
     }
 
     fn init(&mut self) {
         info!("Initializing AdvancedBackendDemo with {} backend", self.current_backend);
+
+        // Check if OpenGL is available
+        self.opengl_available = self.check_opengl_availability();
+        
+        if !self.opengl_available {
+            info!("OpenGL not available for {} backend, using software fallback", self.current_backend);
+            return;
+        }
 
         // Enhanced vertex data for a more interesting triangle
         let vertices: [f32; 9] = [
@@ -264,6 +269,8 @@ impl Application for AdvancedBackendDemo {
         info!("OpenGL setup complete for {} backend", self.current_backend);
     }
 
+
+
     fn update(&mut self, delta_time: f32) {
         // Update animations
         self.rotation += delta_time * 2.0;
@@ -292,6 +299,12 @@ impl Application for AdvancedBackendDemo {
     }
 
     fn render(&mut self) {
+        if !self.opengl_available {
+            // For non-OpenGL backends like Wayland, we could implement
+            // software rendering here, but for now just return
+            return;
+        }
+
         unsafe {
             let bg_color = self.background_colors.get(&self.current_backend);
             gl::ClearColor(bg_color.0, bg_color.1, bg_color.2, 1.0);
@@ -319,12 +332,14 @@ impl Application for AdvancedBackendDemo {
     }
 
     fn shutdown(&mut self) {
-        unsafe {
-            gl::DeleteVertexArrays(1, &self.vertex_array);
-            gl::DeleteBuffers(1, &self.vertex_buffer);
-            gl::DeleteProgram(self.shader_program);
+        if self.opengl_available {
+            unsafe {
+                gl::DeleteVertexArrays(1, &self.vertex_array);
+                gl::DeleteBuffers(1, &self.vertex_buffer);
+                gl::DeleteProgram(self.shader_program);
+            }
         }
-        info!("AdvancedBackendDemo shutdown complete! Total backend switches: {}", self.backend_switch_count);
+        info!("AdvancedBackendDemo shutdown complete");
     }
 
     fn event(&mut self, event: &mut Event) {
@@ -364,6 +379,26 @@ impl Application for AdvancedBackendDemo {
                                 }
                                 event.mark_handled();
                             }
+                            KeyCode::X => {
+                                #[cfg(feature = "x11")]
+                                {
+                                    if self.switch_cooldown <= 0.0 && self.current_backend != "x11" {
+                                        info!("Requesting switch to X11 backend");
+                                        self.switch_pending = Some("x11".to_string());
+                                        self.switch_cooldown = 2.0; // 2 second cooldown
+                                        event.mark_handled();
+                                    } else if self.current_backend == "x11" {
+                                        info!("Already using X11 backend");
+                                    } else {
+                                        info!("Switch cooldown active, please wait...");
+                                    }
+                                }
+                                #[cfg(not(feature = "x11"))]
+                                {
+                                    warn!("X11 backend not available - compile with --features x11");
+                                }
+                                event.mark_handled();
+                            }
                             KeyCode::R => {
                                 self.rotation = 0.0;
                                 self.color_cycle = 0.0;
@@ -392,15 +427,43 @@ impl Application for AdvancedBackendDemo {
     }
 
     fn get_name(&self) -> &str {
-        "Advanced Backend Demo - G:GLFW W:Wayland R:Reset Space:Status ESC:Exit"
+        "Advanced Backend Demo - G:GLFW W:Wayland X:X11 R:Reset Space:Status ESC:Exit"
     }
-}
 
-impl AdvancedBackendDemo {
-    fn on_backend_switch_completed(&mut self, new_backend: &str) {
-        let old_backend = self.current_backend.clone();
+    fn get_pending_backend_switch(&self) -> Option<String> {
+        self.switch_pending.clone()
+    }
+
+    fn clear_pending_backend_switch(&mut self) {
+        self.switch_pending = None;
+    }
+
+    fn on_backend_switch_completed(&mut self, old_backend: &str, new_backend: &str) {
         self.current_backend = new_backend.to_string();
         self.backend_switch_count += 1;
+        
+        // Clean up old OpenGL resources if they exist and we're not switching to a non-OpenGL backend
+        let new_backend_supports_opengl = new_backend == "glfw" || new_backend == "x11"; // GLFW and X11 support OpenGL
+        
+        if self.opengl_available && new_backend_supports_opengl {
+            unsafe {
+                if self.vertex_array != 0 {
+                    gl::DeleteVertexArrays(1, &self.vertex_array);
+                }
+                if self.vertex_buffer != 0 {
+                    gl::DeleteBuffers(1, &self.vertex_buffer);
+                }
+                if self.shader_program != 0 {
+                    gl::DeleteProgram(self.shader_program);
+                }
+            }
+        }
+        
+        // Reset OpenGL objects
+        self.vertex_array = 0;
+        self.vertex_buffer = 0;
+        self.shader_program = 0;
+        self.opengl_available = false;
         
         // Re-initialize graphics after backend switch
         self.init();
@@ -408,21 +471,59 @@ impl AdvancedBackendDemo {
         info!("✓ Backend switch completed: {} → {} (Total switches: {})", 
               old_backend, new_backend, self.backend_switch_count);
     }
-    
-    fn get_switch_pending(&self) -> Option<String> {
-        self.switch_pending.clone()
-    }
-    
-    fn clear_switch_pending(&mut self) {
-        self.switch_pending = None;
-    }
-    
+}
+
+impl AdvancedBackendDemo {
     fn get_backend_switch_count(&self) -> u32 {
         self.backend_switch_count
     }
-    
+
     fn get_current_fps(&self) -> f32 {
         self.current_fps
+    }
+
+    fn check_opengl_availability(&self) -> bool {
+        // Quick check: if we know the backend doesn't support OpenGL, return false immediately
+        if self.current_backend == "wayland" {
+            return false;
+        }
+        
+        // Known OpenGL-supporting backends should have OpenGL available
+        if self.current_backend == "glfw" || self.current_backend == "x11" {
+            unsafe {
+                // Clear any previous OpenGL errors
+                while gl::GetError() != gl::NO_ERROR {}
+                
+                // Try to call a basic OpenGL function to see if we have a valid context
+                let version = gl::GetString(gl::VERSION);
+                
+                if version.is_null() {
+                    warn!("OpenGL version string is null for {} backend", self.current_backend);
+                    return false;
+                }
+                
+                // Get the version string for logging
+                let version_str = std::ffi::CStr::from_ptr(version as *const i8).to_string_lossy();
+                debug!("OpenGL version detected: {}", version_str);
+                
+                // Additional check: try to create a simple buffer
+                let mut test_buffer = 0;
+                gl::GenBuffers(1, &mut test_buffer);
+                let error = gl::GetError();
+                
+                if test_buffer != 0 && error == gl::NO_ERROR {
+                    gl::DeleteBuffers(1, &test_buffer);
+                    debug!("OpenGL context validation successful for {} backend", self.current_backend);
+                    return true;
+                } else {
+                    warn!("OpenGL buffer test failed for {} backend - error: 0x{:X}", self.current_backend, error);
+                    return false;
+                }
+            }
+        }
+        
+        // Unknown backend, assume no OpenGL support
+        false
     }
 }
 
@@ -460,6 +561,7 @@ fn main() {
     info!("Controls:");
     info!("  G - Switch to GLFW backend (orange triangle, blue background)");
     info!("  W - Switch to Wayland backend (purple triangle, green background)");
+    info!("  X - Switch to X11 backend (cyan triangle, brown background)");
     info!("  R - Reset animations");
     info!("  SPACE - Show status information");
     info!("  ESC - Exit application");

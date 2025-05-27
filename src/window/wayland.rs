@@ -1,29 +1,31 @@
-use crate::events::core::{Event, EventData, EventType, KeyEvent, MouseMoveEvent, MouseButtonEvent, MouseScrollEvent, WindowResizeEvent, WindowMoveEvent, WindowCloseEvent, KeyAction, KeyCode, KeyMod, MouseButton};
+use crate::events::core::{Event, EventData, KeyEvent, MouseMoveEvent, MouseButtonEvent, MouseScrollEvent, WindowResizeEvent, KeyAction, KeyCode, KeyMod, MouseButton};
 use crate::io::{Window, WindowHint, OpenGLWindow, Size, Position};
 use crate::window::factory::{WindowFactory, WindowFeature};
-use artifice_logging::{debug, info, warn, error};
+use artifice_logging::{debug, info, warn};
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
-use std::time::Instant;
+use std::any::Any;
+
+use std::os::unix::io::BorrowedFd;
 
 // Wayland protocol imports
 use wayland_client::{
-    Connection, Dispatch, EventQueue, Proxy, QueueHandle,
+    Connection, Dispatch, EventQueue, Proxy, QueueHandle, WEnum,
     protocol::{
-        wl_compositor::{self, WlCompositor},
+        wl_compositor::WlCompositor,
         wl_surface::{self, WlSurface},
-        wl_shell::{self, WlShell},
+        wl_shell::WlShell,
         wl_shell_surface::{self, WlShellSurface},
-        wl_seat::{self, WlSeat},
+        wl_seat::WlSeat,
         wl_pointer::{self, WlPointer},
         wl_keyboard::{self, WlKeyboard},
-        wl_registry::{self, WlRegistry},
+        wl_registry::WlRegistry,
         wl_shm::{self, WlShm},
         wl_buffer::{self, WlBuffer},
-        wl_shm_pool::{self, WlShmPool},
-        wl_output::{self, WlOutput},
+        wl_shm_pool::WlShmPool,
+        wl_output::WlOutput,
     },
-    globals::{registry_queue_init, GlobalList},
+    globals::{registry_queue_init, GlobalListContents},
 };
 
 /// Wayland window implementation
@@ -94,7 +96,7 @@ impl WaylandWindow {
             .expect("Failed to connect to Wayland compositor");
 
         // Create initial event queue
-        let (globals, mut event_queue) = registry_queue_init::<WaylandState>(&connection)
+        let (globals, event_queue) = registry_queue_init::<WaylandState>(&connection)
             .expect("Failed to initialize Wayland registry");
 
         // Get required globals
@@ -143,7 +145,7 @@ impl WaylandWindow {
 
         // Set up shell surface if shell is available
         if let Some(ref shell) = shell {
-            let shell_surface = shell.get_shell_surface(&window.event_queue.handle(), &surface, ());
+            let shell_surface = shell.get_shell_surface(&surface, &window.event_queue.handle(), ());
             shell_surface.set_title(title.to_string());
             shell_surface.set_toplevel();
             window.shell_surface = Some(shell_surface);
@@ -170,6 +172,8 @@ impl WaylandWindow {
         window
     }
 
+
+
     fn create_buffer(&mut self, width: u32, height: u32) {
         if let Some(ref shm) = self.shm {
             let stride = width * 4; // 4 bytes per pixel (ARGB)
@@ -180,16 +184,17 @@ impl WaylandWindow {
                 .expect("Failed to create shared memory file");
             
             // Create shm pool
-            let pool = shm.create_pool(&self.event_queue.handle(), fd, size as i32, ());
+            let borrowed_fd = unsafe { BorrowedFd::borrow_raw(fd) };
+            let pool = shm.create_pool(borrowed_fd, size as i32, &self.event_queue.handle(), ());
             
             // Create buffer
             let buffer = pool.create_buffer(
-                &self.event_queue.handle(),
-                0, // offset
+                0,
                 width as i32,
                 height as i32,
                 stride as i32,
                 wl_shm::Format::Argb8888,
+                &self.event_queue.handle(),
                 ()
             );
             
@@ -279,8 +284,8 @@ impl Window for WaylandWindow {
         // Create state object for event dispatching
         let mut state = WaylandState::new(self);
         
-        // Dispatch events
-        if let Err(e) = self.event_queue.blocking_dispatch(&mut state) {
+        // Dispatch only pending events (non-blocking)
+        if let Err(e) = self.event_queue.dispatch_pending(&mut state) {
             warn!("Failed to dispatch Wayland events: {}", e);
         }
     }
@@ -342,6 +347,10 @@ impl Window for WaylandWindow {
     fn set_event_callback(&mut self, callback: Arc<Mutex<dyn FnMut(Event) + Send + 'static>>) {
         self.event_callback = Some(callback);
     }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
 }
 
 impl OpenGLWindow for WaylandWindow {
@@ -362,6 +371,11 @@ impl OpenGLWindow for WaylandWindow {
             self.surface.commit();
         }
     }
+
+    fn reload_opengl_functions(&mut self) {
+        // Wayland OpenGL context management would require EGL integration
+        warn!("OpenGL function reloading not implemented for Wayland backend - requires EGL integration");
+    }
 }
 
 // Wayland event dispatch implementations
@@ -375,6 +389,32 @@ impl Dispatch<WlRegistry, ()> for WaylandState {
         _qhandle: &QueueHandle<WaylandState>,
     ) {
         // Registry events are handled during initialization
+    }
+}
+
+impl Dispatch<WlRegistry, GlobalListContents> for WaylandState {
+    fn event(
+        _state: &mut Self,
+        _proxy: &WlRegistry,
+        _event: <WlRegistry as Proxy>::Event,
+        _data: &GlobalListContents,
+        _conn: &Connection,
+        _qhandle: &QueueHandle<WaylandState>,
+    ) {
+        // Registry events for global list
+    }
+}
+
+impl Dispatch<WlShell, ()> for WaylandState {
+    fn event(
+        _state: &mut Self,
+        _proxy: &WlShell,
+        _event: <WlShell as Proxy>::Event,
+        _data: &(),
+        _conn: &Connection,
+        _qhandle: &QueueHandle<WaylandState>,
+    ) {
+        // Shell events
     }
 }
 
@@ -489,8 +529,8 @@ impl Dispatch<WlPointer, ()> for WaylandState {
                 wl_pointer::Event::Button { serial: _, time: _, button, state } => {
                     let mouse_button = WaylandWindow::map_wayland_mouse_button(button);
                     let action = match state {
-                        wl_pointer::ButtonState::Pressed => KeyAction::Press,
-                        wl_pointer::ButtonState::Released => KeyAction::Release,
+                        WEnum::Value(wl_pointer::ButtonState::Pressed) => KeyAction::Press,
+                        WEnum::Value(wl_pointer::ButtonState::Released) => KeyAction::Release,
                         _ => return,
                     };
                     
@@ -503,8 +543,8 @@ impl Dispatch<WlPointer, ()> for WaylandState {
                 }
                 wl_pointer::Event::Axis { time: _, axis, value } => {
                     let (x_offset, y_offset) = match axis {
-                        wl_pointer::Axis::VerticalScroll => (0.0, value / 10.0), // Scale down
-                        wl_pointer::Axis::HorizontalScroll => (value / 10.0, 0.0), // Scale down
+                        WEnum::Value(wl_pointer::Axis::VerticalScroll) => (0.0, value / 10.0), // Scale down
+                        WEnum::Value(wl_pointer::Axis::HorizontalScroll) => (value / 10.0, 0.0), // Scale down
                         _ => return,
                     };
                     
@@ -541,11 +581,11 @@ impl Dispatch<WlKeyboard, ()> for WaylandState {
                 wl_keyboard::Event::Key { serial: _, time: _, key, state } => {
                     let keycode = WaylandWindow::map_wayland_key_to_keycode(key);
                     let action = match state {
-                        wl_keyboard::KeyState::Pressed => {
+                        WEnum::Value(wl_keyboard::KeyState::Pressed) => {
                             window.keyboard_state.insert(key, true);
                             KeyAction::Press
                         }
-                        wl_keyboard::KeyState::Released => {
+                        WEnum::Value(wl_keyboard::KeyState::Released) => {
                             window.keyboard_state.remove(&key);
                             KeyAction::Release
                         }
@@ -668,7 +708,7 @@ impl WindowFactory for WaylandWindowFactory {
 /// Helper function to create an anonymous file for shared memory
 fn create_anonymous_file(size: usize) -> Result<std::os::unix::io::RawFd, std::io::Error> {
     use std::ffi::CString;
-    use std::os::unix::io::RawFd;
+
     
     let name = CString::new("artifice-wayland-shm").unwrap();
     

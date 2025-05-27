@@ -8,6 +8,7 @@ use crate::io::*;
 use glfw::{Action, Context, GlfwReceiver, Key, WindowHint as GlfwWindowHint};
 use artifice_logging::{debug, error, info, trace, warn};
 use std::sync::{Arc, Mutex};
+use std::any::Any;
 
 // Thread-safe GLFW window implementation
 pub struct GlfwWindow {
@@ -295,6 +296,10 @@ impl Window for GlfwWindow {
     fn set_event_callback(&mut self, callback: Arc<Mutex<dyn FnMut(Event) + Send + 'static>>) {
         self.event_callback = Some(callback);
     }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
 }
 
 impl OpenGLWindow for GlfwWindow {
@@ -308,5 +313,26 @@ impl OpenGLWindow for GlfwWindow {
 
     fn swap_buffers(&mut self) {
         self.glfw_window.swap_buffers();
+    }
+
+    fn reload_opengl_functions(&mut self) {
+        info!("Reloading OpenGL function pointers for GLFW backend after context switch");
+        
+        // Ensure context is current first
+        self.make_current();
+        
+        // Reload all OpenGL function pointers using GLFW's proc address loader
+        gl::load_with(|symbol| self.glfw_window.get_proc_address(symbol) as *const std::os::raw::c_void);
+
+        // Verify the context is working after reload
+        unsafe {
+            let version = gl::GetString(gl::VERSION);
+            if version.is_null() {
+                warn!("Failed to get OpenGL version after function reload");
+            } else {
+                let version_str = std::ffi::CStr::from_ptr(version as *const i8).to_string_lossy();
+                info!("OpenGL function pointers reloaded successfully, version: {}", version_str);
+            }
+        }
     }
 }

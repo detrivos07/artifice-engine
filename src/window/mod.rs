@@ -1,6 +1,8 @@
 pub mod artificeglfw;
 #[cfg(feature = "wayland")]
 pub mod wayland;
+#[cfg(feature = "x11")]
+pub mod x11;
 pub mod factory;
 pub mod backend_hotswap;
 
@@ -13,6 +15,9 @@ pub use factory::{
 
 #[cfg(feature = "wayland")]
 pub use wayland::{WaylandWindow, WaylandWindowFactory};
+
+#[cfg(feature = "x11")]
+pub use x11::{X11Window, X11WindowFactory};
 
 pub use backend_hotswap::{
     WindowBackendHotswapManager as HotReloadManager,

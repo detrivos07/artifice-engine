@@ -180,10 +180,19 @@ impl Application for BackendSwitchingDemo {
 
             // Set triangle color with cycling effect
             let cycle = (self.color_cycle_time * 2.0).sin() * 0.3 + 0.7;
-            if self.current_backend == "glfw" {
-                gl::Uniform3f(self.triangle_color_location, 1.0 * cycle, 0.5 * cycle, 0.2 * cycle);
-            } else {
-                gl::Uniform3f(self.triangle_color_location, 0.2 * cycle, 1.0 * cycle, 0.5 * cycle);
+            match self.current_backend.as_str() {
+                "glfw" => {
+                    gl::Uniform3f(self.triangle_color_location, 1.0 * cycle, 0.5 * cycle, 0.2 * cycle);
+                }
+                "wayland" => {
+                    gl::Uniform3f(self.triangle_color_location, 0.2 * cycle, 1.0 * cycle, 0.5 * cycle);
+                }
+                "x11" => {
+                    gl::Uniform3f(self.triangle_color_location, 0.2 * cycle, 0.5 * cycle, 1.0 * cycle);
+                }
+                _ => {
+                    gl::Uniform3f(self.triangle_color_location, 0.5 * cycle, 0.5 * cycle, 0.5 * cycle);
+                }
             }
 
             gl::BindVertexArray(self.vertex_array);
@@ -224,6 +233,18 @@ impl Application for BackendSwitchingDemo {
                                 }
                                 event.mark_handled();
                             }
+                            KeyCode::X => {
+                                #[cfg(feature = "x11")]
+                                {
+                                    info!("Requesting switch to X11 backend");
+                                    self.switch_requested = Some("x11".to_string());
+                                }
+                                #[cfg(not(feature = "x11"))]
+                                {
+                                    warn!("X11 backend not available - compile with --features x11");
+                                }
+                                event.mark_handled();
+                            }
                             KeyCode::R => {
                                 // Reset rotation on R key press
                                 self.rotation = 0.0;
@@ -244,7 +265,25 @@ impl Application for BackendSwitchingDemo {
     }
 
     fn get_name(&self) -> &str {
-        "Backend Switching Demo - Press G for GLFW, W for Wayland, R to reset"
+        "Backend Switching Demo - Press G for GLFW, W for Wayland, X for X11, R to reset"
+    }
+
+    fn get_pending_backend_switch(&self) -> Option<String> {
+        self.switch_requested.clone()
+    }
+
+    fn clear_pending_backend_switch(&mut self) {
+        self.switch_requested = None;
+    }
+
+    fn on_backend_switch_completed(&mut self, _old_backend: &str, new_backend: &str) {
+        self.current_backend = new_backend.to_string();
+        self.set_backend_colors(new_backend);
+        
+        // Re-initialize OpenGL objects after backend switch
+        self.init();
+        
+        info!("Successfully switched to {} backend!", new_backend);
     }
 }
 
@@ -258,6 +297,10 @@ impl BackendSwitchingDemo {
             "wayland" => {
                 self.background_color = (0.3, 0.2, 0.4); // Dark purple for Wayland
                 info!("Set Wayland colors: dark purple background, green triangle");
+            }
+            "x11" => {
+                self.background_color = (0.4, 0.3, 0.2); // Dark brown for X11
+                info!("Set X11 colors: dark brown background, blue triangle");
             }
             _ => {
                 self.background_color = (0.1, 0.1, 0.1); // Dark gray for unknown
@@ -308,6 +351,7 @@ fn main() {
     info!("Controls:");
     info!("  G - Switch to GLFW backend");
     info!("  W - Switch to Wayland backend (if available)");
+    info!("  X - Switch to X11 backend (if available)");
     info!("  R - Reset rotation and colors");
     info!("  ESC - Exit application");
 

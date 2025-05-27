@@ -65,6 +65,19 @@ check_dependencies() {
             print_warning "No display server detected. Make sure X11 or Wayland is running."
         fi
     fi
+    
+    # Check for X11 (if requested)
+    if [ "$1" = "x11" ]; then
+        if ! ldconfig -p | grep -q libX11; then
+            print_warning "X11 libraries not found"
+            print_info "Try: sudo apt install libx11-dev libgl1-mesa-dev (Ubuntu/Debian)"
+            print_info "Or: sudo pacman -S libx11 mesa (Arch Linux)"
+        fi
+        
+        if [ -z "$DISPLAY" ]; then
+            print_warning "No X11 display detected. Make sure X11 is running."
+        fi
+    fi
 }
 
 # Function to build examples
@@ -118,6 +131,7 @@ show_controls() {
             print_info "Controls for Backend Switching Demo:"
             echo "  G - Switch to GLFW backend"
             echo "  W - Switch to Wayland backend"
+            echo "  X - Switch to X11 backend"
             echo "  R - Reset rotation and colors"
             echo "  ESC - Exit"
             ;;
@@ -125,6 +139,7 @@ show_controls() {
             print_info "Controls for Advanced Backend Demo:"
             echo "  G - Switch to GLFW backend"
             echo "  W - Switch to Wayland backend"
+            echo "  X - Switch to X11 backend"
             echo "  R - Reset animations"
             echo "  SPACE - Show status"
             echo "  ESC - Exit"
@@ -142,6 +157,8 @@ show_usage() {
     echo "Commands:"
     echo "  build           Build all examples (GLFW only)"
     echo "  build-wayland   Build all examples with Wayland support"
+    echo "  build-x11       Build all examples with X11 support"
+    echo "  build-all       Build all examples with all backends"
     echo "  basic           Run basic demo"
     echo "  switching       Run backend switching demo"
     echo "  advanced        Run advanced backend demo"
@@ -151,27 +168,39 @@ show_usage() {
     echo ""
     echo "Options:"
     echo "  --wayland       Enable Wayland support for demos"
+    echo "  --x11           Enable X11 support for demos"
+    echo "  --all-backends  Enable all backend support"
     echo "  --debug         Enable debug logging"
     echo "  --trace         Enable trace logging"
     echo ""
     echo "Examples:"
     echo "  $0 build-wayland          # Build with Wayland support"
+    echo "  $0 build-x11              # Build with X11 support"
+    echo "  $0 build-all              # Build with all backends"
     echo "  $0 switching --wayland     # Run switching demo with Wayland"
+    echo "  $0 switching --x11         # Run switching demo with X11"
+    echo "  $0 advanced --all-backends # Run advanced demo with all backends"
     echo "  $0 advanced --debug        # Run advanced demo with debug logging"
 }
 
 # Parse command line arguments
 COMMAND=""
-WAYLAND_SUPPORT=""
+BACKEND_FEATURES=""
 DEBUG_LEVEL=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
-        build|build-wayland|basic|switching|advanced|all|check|help)
+        build|build-wayland|build-x11|build-all|basic|switching|advanced|all|check|help)
             COMMAND="$1"
             ;;
         --wayland)
-            WAYLAND_SUPPORT="wayland"
+            BACKEND_FEATURES="wayland"
+            ;;
+        --x11)
+            BACKEND_FEATURES="x11"
+            ;;
+        --all-backends)
+            BACKEND_FEATURES="wayland,x11"
             ;;
         --debug)
             DEBUG_LEVEL="debug"
@@ -195,40 +224,46 @@ elif [ "$DEBUG_LEVEL" = "trace" ]; then
     export RUST_LOG=trace
 fi
 
-# Handle special build command
+# Handle special build commands
 if [ "$COMMAND" = "build-wayland" ]; then
-    WAYLAND_SUPPORT="wayland"
+    BACKEND_FEATURES="wayland"
+    COMMAND="build"
+elif [ "$COMMAND" = "build-x11" ]; then
+    BACKEND_FEATURES="x11"
+    COMMAND="build"
+elif [ "$COMMAND" = "build-all" ]; then
+    BACKEND_FEATURES="wayland,x11"
     COMMAND="build"
 fi
 
 # Execute command
 case "$COMMAND" in
     "build")
-        check_dependencies "$WAYLAND_SUPPORT"
-        build_examples "$WAYLAND_SUPPORT"
+        check_dependencies "$BACKEND_FEATURES"
+        build_examples "$BACKEND_FEATURES"
         print_success "Build complete! Use '$0 help' to see available demos."
         ;;
         
     "basic")
-        build_examples "$WAYLAND_SUPPORT"
+        build_examples "$BACKEND_FEATURES"
         show_controls "basic_demo"
-        run_example "basic_demo" "$WAYLAND_SUPPORT"
+        run_example "basic_demo" "$BACKEND_FEATURES"
         ;;
         
     "switching")
-        build_examples "$WAYLAND_SUPPORT"
+        build_examples "$BACKEND_FEATURES"
         show_controls "backend_switching_demo"
-        run_example "backend_switching_demo" "$WAYLAND_SUPPORT"
+        run_example "backend_switching_demo" "$BACKEND_FEATURES"
         ;;
         
     "advanced")
-        build_examples "$WAYLAND_SUPPORT"
+        build_examples "$BACKEND_FEATURES"
         show_controls "advanced_backend_demo"
-        run_example "advanced_backend_demo" "$WAYLAND_SUPPORT"
+        run_example "advanced_backend_demo" "$BACKEND_FEATURES"
         ;;
         
     "all")
-        build_examples "$WAYLAND_SUPPORT"
+        build_examples "$BACKEND_FEATURES"
         
         print_info "Running all demos in sequence..."
         print_info "Press Ctrl+C to skip to next demo, or ESC in demo to continue"
@@ -237,7 +272,7 @@ case "$COMMAND" in
             print_info "Starting $demo..."
             show_controls "$demo"
             read -p "Press Enter to start $demo (or Ctrl+C to skip)..."
-            run_example "$demo" "$WAYLAND_SUPPORT" || true
+            run_example "$demo" "$BACKEND_FEATURES" || true
             echo ""
         done
         
@@ -245,7 +280,7 @@ case "$COMMAND" in
         ;;
         
     "check")
-        check_dependencies "$WAYLAND_SUPPORT"
+        check_dependencies "$BACKEND_FEATURES"
         print_info "Dependency check complete"
         ;;
         

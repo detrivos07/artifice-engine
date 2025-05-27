@@ -4,6 +4,7 @@ pub mod metrics;
 
 use crate::events::Event;
 use std::sync::{Arc, Mutex};
+use std::any::Any;
 
 // Re-export key types for easier access
 pub use metrics::{
@@ -29,6 +30,8 @@ pub trait Window {
     fn set_title(&mut self, title: &str);
     fn get_event_callback(&self) -> Option<Arc<Mutex<dyn FnMut(Event) + Send + 'static>>>;
     fn set_event_callback(&mut self, callback: Arc<Mutex<dyn FnMut(Event) + Send + 'static>>);
+    /// Enable downcasting to concrete window types for backend-specific operations
+    fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
 /// Extends the Window trait with OpenGL-specific functionality.
@@ -36,6 +39,8 @@ pub trait OpenGLWindow: Window {
     fn make_current(&mut self);
     fn is_current(&self) -> bool;
     fn swap_buffers(&mut self);
+    /// Reload OpenGL function pointers - essential for backend switching
+    fn reload_opengl_functions(&mut self);
 }
 
 /// Window hints for configuring window creation

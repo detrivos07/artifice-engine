@@ -1,6 +1,8 @@
 use crate::io::{Window, WindowHint};
 #[cfg(feature = "wayland")]
 use crate::window::wayland::WaylandWindowFactory;
+#[cfg(feature = "x11")]
+use crate::window::x11::X11WindowFactory;
 use std::collections::HashMap;
 use artifice_logging::{debug, info, warn};
 
@@ -108,6 +110,10 @@ impl WindowBackendRegistry {
         // Register Wayland backend if available
         #[cfg(all(feature = "wayland", target_os = "linux"))]
         registry.register_factory("wayland".to_string(), Box::new(WaylandWindowFactory));
+        
+        // Register X11 backend if available
+        #[cfg(all(feature = "x11", target_os = "linux"))]
+        registry.register_factory("x11".to_string(), Box::new(X11WindowFactory));
         
         registry.set_default_backend("glfw");
         

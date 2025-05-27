@@ -14,6 +14,10 @@ use crate::io::{
 use crate::window::{
     HotReloadManager, HotReloadConfig, WindowBackendRegistry
 };
+use crate::window::artificeglfw::GlfwWindow;
+#[cfg(feature = "x11")]
+use crate::window::x11::X11Window;
+use crate::io::OpenGLWindow;
 use artifice_logging::{debug, info, warn};
 
 /// The core Application trait that all applications must implement
@@ -42,6 +46,17 @@ pub trait Application: Send + 'static {
     fn get_name(&self) -> &str {
         "Artifice Application"
     }
+
+    /// Check if a backend switch is pending
+    fn get_pending_backend_switch(&self) -> Option<String> {
+        None
+    }
+
+    /// Clear any pending backend switch request
+    fn clear_pending_backend_switch(&mut self) {}
+
+    /// Called when a backend switch is completed
+    fn on_backend_switch_completed(&mut self, _old_backend: &str, _new_backend: &str) {}
 }
 
 /// A layer that can be added to the application stack
@@ -226,6 +241,24 @@ impl<T: Application> Engine<T> {
                 layer.update(delta_time);
             }
 
+            // Check for pending backend switches
+            if let Some(target_backend) = self.application.get_pending_backend_switch() {
+                info!("Processing backend switch request to: {}", target_backend);
+                
+                match self.switch_backend(&target_backend) {
+                    Ok(old_backend) => {
+                        info!("✓ Backend switch completed: {} → {}", old_backend, target_backend);
+                        self.application.on_backend_switch_completed(&old_backend, &target_backend);
+                    }
+                    Err(e) => {
+                        warn!("✗ Backend switch failed: {}", e);
+                    }
+                }
+                
+                // Clear the pending switch regardless of success/failure
+                self.application.clear_pending_backend_switch();
+            }
+
             // Update application
             self.application.update(delta_time);
 
@@ -341,7 +374,7 @@ impl<T: Application> Engine<T> {
     }
 
     /// Switch to a different window backend using hot reload
-    pub fn switch_backend(&mut self, backend_name: &str) -> Result<(), String> {
+    pub fn switch_backend(&mut self, backend_name: &str) -> Result<String, String> {
         // Start the hot reload process
         self.hot_reload_manager.start_reload(backend_name, self.window.as_ref())?;
 
@@ -373,14 +406,43 @@ impl<T: Application> Engine<T> {
 
         new_window.set_event_callback(event_callback);
 
-        // Complete the hot reload
+        // Complete the hot reload first to handle state preservation
         let result = self.hot_reload_manager.complete_reload(backend_name, new_window.as_mut());
-        
+    
         // Replace the window
         self.window = new_window;
 
+        // Critical: Reload OpenGL functions AFTER window replacement
+        // This ensures the new window context is active when we reload functions
+        info!("Attempting to reload OpenGL functions for backend switch to '{}'", backend_name);
+        
+        let opengl_reloaded = self.try_reload_opengl_functions(backend_name);
+        
+        // Report the result and validate OpenGL state
+        match backend_name {
+            "glfw" | "x11" => {
+                if !opengl_reloaded {
+                    warn!("Failed to reload OpenGL functions for backend '{}' - OpenGL may not work properly", backend_name);
+                    warn!("This usually indicates the backend doesn't support OpenGL or context creation failed");
+                } else {
+                    info!("✓ OpenGL functions successfully reloaded for backend '{}'", backend_name);
+                    self.validate_opengl_context(backend_name);
+                }
+            }
+            _ => {
+                debug!("Backend '{}' does not require OpenGL function reloading", backend_name);
+            }
+        }
+        
+        #[cfg(not(feature = "x11"))]
+        {
+            if backend_name == "x11" {
+                warn!("X11 backend requested but x11 feature not enabled");
+            }
+        }
+
         info!("Backend switch completed: {:?}", result);
-        Ok(())
+        Ok(result.old_backend)
     }
 
     /// Get current metrics snapshot
@@ -406,6 +468,75 @@ impl<T: Application> Engine<T> {
     pub fn report_metrics(&self) {
         if let Some(ref collector) = self.metrics_collector {
             collector.log_metrics_summary();
+        }
+    }
+
+    /// Try to reload OpenGL functions for the current window
+    /// Returns true if successful, false otherwise
+    fn try_reload_opengl_functions(&mut self, backend_name: &str) -> bool {
+        info!("Reloading OpenGL functions for backend: {}", backend_name);
+        
+        // Try GLFW backend first
+        if let Some(opengl_window) = self.window.as_any_mut().downcast_mut::<GlfwWindow>() {
+            info!("Detected GLFW window - reloading OpenGL functions");
+            opengl_window.make_current();
+            
+            // Verify context is current before reloading
+            if !opengl_window.is_current() {
+                warn!("GLFW context is not current after make_current() call");
+                return false;
+            }
+            
+            opengl_window.reload_opengl_functions();
+            return true;
+        }
+        
+        // Try X11 backend
+        #[cfg(feature = "x11")]
+        {
+            if let Some(opengl_window) = self.window.as_any_mut().downcast_mut::<X11Window>() {
+                info!("Detected X11 window - reloading OpenGL functions");
+                opengl_window.make_current();
+                
+                // Verify context is current before reloading
+                if !opengl_window.is_current() {
+                    warn!("X11 context is not current after make_current() call");
+                    return false;
+                }
+                
+                opengl_window.reload_opengl_functions();
+                return true;
+            }
+        }
+        
+        // Check if we expected OpenGL support but couldn't find it
+        if backend_name == "glfw" || backend_name == "x11" {
+            warn!("Expected OpenGL support for backend '{}' but window downcast failed", backend_name);
+        } else {
+            debug!("Backend '{}' does not support OpenGL function reloading", backend_name);
+        }
+        
+        false
+    }
+
+    /// Validate that OpenGL context is working after backend switch
+    fn validate_opengl_context(&self, backend_name: &str) {
+        unsafe {
+            // Test basic OpenGL state
+            let error = gl::GetError();
+            if error != gl::NO_ERROR {
+                warn!("OpenGL error state after {} backend switch: 0x{:X}", backend_name, error);
+                return;
+            }
+
+            // Try to get OpenGL version as a context validation
+            let version = gl::GetString(gl::VERSION);
+            if version.is_null() {
+                warn!("Failed to get OpenGL version after {} backend switch - context validation failed", backend_name);
+            } else {
+                let version_str = std::ffi::CStr::from_ptr(version as *const i8).to_string_lossy();
+                info!("OpenGL context validated for {} backend: {}", backend_name, version_str);
+            }
         }
     }
 }

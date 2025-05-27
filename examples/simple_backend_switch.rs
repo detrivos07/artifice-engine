@@ -20,6 +20,7 @@ pub struct SimpleBackendSwitchDemo {
     rotation: f32,
     current_backend: String,
     switch_cooldown: f32,
+    switch_pending: Option<String>,
 }
 
 impl Application for SimpleBackendSwitchDemo {
@@ -31,6 +32,7 @@ impl Application for SimpleBackendSwitchDemo {
             rotation: 0.0,
             current_backend: "glfw".to_string(),
             switch_cooldown: 0.0,
+            switch_pending: None,
         }
     }
 
@@ -157,8 +159,8 @@ impl Application for SimpleBackendSwitchDemo {
                         match key_event.key {
                             KeyCode::G => {
                                 if self.current_backend != "glfw" {
-                                    info!("Switching to GLFW backend...");
-                                    self.current_backend = "glfw".to_string();
+                                    info!("Requesting switch to GLFW backend...");
+                                    self.switch_pending = Some("glfw".to_string());
                                     self.switch_cooldown = 1.0;
                                     event.mark_handled();
                                 }
@@ -167,8 +169,8 @@ impl Application for SimpleBackendSwitchDemo {
                                 #[cfg(feature = "wayland")]
                                 {
                                     if self.current_backend != "wayland" {
-                                        info!("Switching to Wayland backend...");
-                                        self.current_backend = "wayland".to_string();
+                                        info!("Requesting switch to Wayland backend...");
+                                        self.switch_pending = Some("wayland".to_string());
                                         self.switch_cooldown = 1.0;
                                         event.mark_handled();
                                     }
@@ -197,6 +199,23 @@ impl Application for SimpleBackendSwitchDemo {
 
     fn get_name(&self) -> &str {
         "Simple Backend Switch Demo - G:GLFW W:Wayland R:Reset ESC:Exit"
+    }
+
+    fn get_pending_backend_switch(&self) -> Option<String> {
+        self.switch_pending.clone()
+    }
+
+    fn clear_pending_backend_switch(&mut self) {
+        self.switch_pending = None;
+    }
+
+    fn on_backend_switch_completed(&mut self, old_backend: &str, new_backend: &str) {
+        self.current_backend = new_backend.to_string();
+        
+        // Re-initialize graphics after backend switch
+        self.init();
+        
+        info!("✓ Backend switch completed: {} → {}", old_backend, new_backend);
     }
 }
 

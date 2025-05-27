@@ -17,6 +17,7 @@ This document summarizes the implementation of runtime window backend switching 
 
 - **GLFW**: Cross-platform windowing (default, always available)
 - **Wayland**: Native Wayland protocol support (Linux only, requires `wayland` feature)
+- **X11**: Native X11 protocol support with GLX (Linux only, requires `x11` feature)
 
 ### Example Applications
 
@@ -95,6 +96,8 @@ let mut engine = Engine::with_backend(app, "glfw");
 
 // Switch to different backend
 engine.switch_backend("wayland")?;
+// or
+engine.switch_backend("x11")?;
 ```
 
 ### Advanced Configuration
@@ -114,7 +117,8 @@ let engine = Engine::with_config(app, "glfw", metrics_config, hot_reload_config)
 ### Runtime Controls
 
 - `G` key: Switch to GLFW backend
-- `W` key: Switch to Wayland backend  
+- `W` key: Switch to Wayland backend
+- `X` key: Switch to X11 backend
 - `R` key: Reset animations
 - `SPACE`: Show status information
 - `ESC`: Exit application
@@ -152,11 +156,25 @@ cargo build --examples --features wayland
 cargo run --example simple_backend_switch --features wayland
 ```
 
+### With X11 Support
+```bash
+cargo build --examples --features x11
+cargo run --example simple_backend_switch --features x11
+```
+
+### With All Backends
+```bash
+cargo build --examples --features "wayland,x11"
+cargo run --example simple_backend_switch --features "wayland,x11"
+```
+
 ### Using the Helper Script
 ```bash
-./run_backend_demos.sh simple           # Run simple demo
-./run_backend_demos.sh switching        # Run switching demo
-./run_backend_demos.sh all --wayland    # Run all demos with Wayland
+./run_backend_demos.sh simple              # Run simple demo
+./run_backend_demos.sh switching           # Run switching demo
+./run_backend_demos.sh all --wayland       # Run all demos with Wayland
+./run_backend_demos.sh switching --x11     # Run switching demo with X11
+./run_backend_demos.sh all --all-backends  # Run all demos with all backends
 ```
 
 ## System Requirements
@@ -165,9 +183,10 @@ cargo run --example simple_backend_switch --features wayland
 - OpenGL 3.3+ compatible graphics driver
 - GLFW 3.3+ (handled automatically)
 - Wayland development libraries (for Wayland support)
+- X11 development libraries (for X11 support)
 
 ### Platform Support
-- **Linux**: Full support for GLFW and Wayland backends
+- **Linux**: Full support for GLFW, Wayland, and X11 backends
 - **Windows**: GLFW backend only
 - **macOS**: GLFW backend only
 
