@@ -1,11 +1,15 @@
 #![allow(unused)]
 
-pub mod artificeglfw;
-pub mod keyboard;
-pub mod mouse;
+pub mod metrics;
 
-use crate::event::Event;
+use crate::events::Event;
 use std::sync::{Arc, Mutex};
+
+// Re-export key types for easier access
+pub use metrics::{
+    MetricsCollector, MetricsHandle, MetricsTimer, MetricsReporter, MetricsFactory,
+    EventSystemMetrics, EventTypeMetrics, MetricsConfig
+};
 
 /// Trait representing a window.
 ///
@@ -58,12 +62,6 @@ pub enum OpenGLProfile {
     Any,
     Core,
     Compatibility,
-}
-
-/// Input device trait for common functionality
-pub trait InputDevice {
-    fn update(&mut self);
-    fn is_connected(&self) -> bool;
 }
 
 #[derive(Debug, Clone, Copy)]

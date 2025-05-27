@@ -1,12 +1,12 @@
 ///! Artifice GLFW library
 ///!
 ///! This library provides a GLFW window and input handling for the Artifice engine.
-use crate::event::*;
-use crate::io::keyboard::key_translation;
-use crate::io::mouse::mouse_translation;
+use crate::events::core::{*, EventData};
+use crate::input::keyboard::key_translation;
+use crate::input::mouse::mouse_translation;
 use crate::io::*;
 use glfw::{Action, Context, GlfwReceiver, Key, WindowHint as GlfwWindowHint};
-use logging::{debug, error, info, trace, warn};
+use artifice_logging::{debug, error, info, trace, warn};
 use std::sync::{Arc, Mutex};
 
 // Thread-safe GLFW window implementation
@@ -156,16 +156,14 @@ impl Window for GlfwWindow {
                         self.glfw_window.set_should_close(true);
                     }
 
-                    // Create the key event
-                    let key_event = KeyEvent {
-                        key: key_code,
-                        action: key_action,
-                        mods: key_mods,
-                    };
-
-                    // Dispatch the event
+                    // Create and dispatch the key event
                     if let Some(callback) = &self.event_callback {
-                        let mut event = Event::new(key_event);
+                        let key_event = KeyEvent {
+                            key: key_code,
+                            action: key_action,
+                            mods: key_mods,
+                        };
+                        let event = Event::new(EventData::Key(key_event));
                         let mut callback = callback.lock().unwrap();
                         callback(event);
                     }
@@ -179,15 +177,13 @@ impl Window for GlfwWindow {
                         gl::Viewport(0, 0, width, height);
                     }
 
-                    // Create the resize event
-                    let resize_event = WindowResizeEvent {
-                        width: width as u32,
-                        height: height as u32,
-                    };
-
-                    // Dispatch the event
+                    // Create and dispatch the resize event
                     if let Some(callback) = &self.event_callback {
-                        let mut event = Event::new(resize_event);
+                        let resize_event = WindowResizeEvent {
+                            width: width as u32,
+                            height: height as u32,
+                        };
+                        let event = Event::new(EventData::WindowResize(resize_event));
                         let mut callback = callback.lock().unwrap();
                         callback(event);
                     }
@@ -196,23 +192,19 @@ impl Window for GlfwWindow {
                     // Update internal position
                     self.position = Position::from((x, y));
 
-                    // Create the move event
-                    let move_event = WindowMoveEvent { x, y };
-
-                    // Dispatch the event
+                    // Create and dispatch the move event
                     if let Some(callback) = &self.event_callback {
-                        let mut event = Event::new(move_event);
+                        let move_event = WindowMoveEvent { x, y };
+                        let event = Event::new(EventData::WindowMove(move_event));
                         let mut callback = callback.lock().unwrap();
                         callback(event);
                     }
                 }
                 glfw::WindowEvent::CursorPos(x, y) => {
-                    // Create mouse move event
-                    let move_event = MouseMoveEvent { x, y };
-
-                    // Dispatch the event
+                    // Create and dispatch mouse move event
                     if let Some(callback) = &self.event_callback {
-                        let mut event = Event::new(move_event);
+                        let move_event = MouseMoveEvent { x, y };
+                        let event = Event::new(EventData::MouseMove(move_event));
                         let mut callback = callback.lock().unwrap();
                         callback(event);
                     }
@@ -223,38 +215,32 @@ impl Window for GlfwWindow {
                     let button_action = key_translation::from_glfw_action(action);
                     let key_mods = key_translation::from_glfw_mods(mods);
 
-                    // Create mouse button event
-                    let button_event = MouseButtonEvent {
-                        button: mouse_button,
-                        action: button_action,
-                        mods: key_mods,
-                    };
-
-                    // Dispatch the event
+                    // Create and dispatch mouse button event
                     if let Some(callback) = &self.event_callback {
-                        let mut event = Event::new(button_event);
+                        let button_event = MouseButtonEvent {
+                            button: mouse_button,
+                            action: button_action,
+                            mods: key_mods,
+                        };
+                        let event = Event::new(EventData::MouseButton(button_event));
                         let mut callback = callback.lock().unwrap();
                         callback(event);
                     }
                 }
                 glfw::WindowEvent::Scroll(x_offset, y_offset) => {
-                    // Create scroll event
-                    let scroll_event = MouseScrollEvent { x_offset, y_offset };
-
-                    // Dispatch the event
+                    // Create and dispatch scroll event
                     if let Some(callback) = &self.event_callback {
-                        let mut event = Event::new(scroll_event);
+                        let scroll_event = MouseScrollEvent { x_offset, y_offset };
+                        let event = Event::new(EventData::MouseScroll(scroll_event));
                         let mut callback = callback.lock().unwrap();
                         callback(event);
                     }
                 }
                 glfw::WindowEvent::Close => {
-                    // Create close event
-                    let close_event = WindowCloseEvent;
-
-                    // Dispatch the event
+                    // Create and dispatch close event
                     if let Some(callback) = &self.event_callback {
-                        let mut event = Event::new(close_event);
+                        let close_event = WindowCloseEvent;
+                        let event = Event::new(EventData::WindowClose(close_event));
                         let mut callback = callback.lock().unwrap();
                         callback(event);
                     }

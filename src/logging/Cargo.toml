@@ -1,14 +1,42 @@
 [package]
-name = "artificecore-logging"
+name = "artifice-logging"
 version = "0.1.0"
 edition = "2021"
 authors = ["Detrivos"]
-description = "Logging module for ArtificeCore - compatible with standard Rust log crate"
+description = "High-performance, data-oriented logging library with batch processing and memory optimization"
+license = "MIT"
+repository = "https://github.com/detrivos/artifice-engine"
+homepage = "https://github.com/detrivos/artifice-engine/tree/main/src/logging"
+documentation = "https://docs.rs/artifice-logging"
+readme = "README.md"
+keywords = ["logging", "performance", "batch", "data-oriented", "high-throughput"]
+categories = ["development-tools::debugging", "asynchronous"]
+exclude = ["examples/", "tests/", "benches/"]
 
 [lib]
-name = "logging"
+name = "artifice_logging"
 path = "src/lib.rs"
 
 [dependencies]
-chrono = "0.4.40"
+chrono = { version = "0.4.40", features = ["serde"] }
 log = "0.4.27"
+
+[dev-dependencies]
+tempfile = "3.8"
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[features]
+default = ["colors", "env"]
+colors = []
+env = []
+serde = ["chrono/serde"]
+
+[[example]]
+name = "basic_usage"
+path = "examples/basic_usage.rs"
+
+[[example]]
+name = "advanced_usage"
+path = "examples/advanced_usage.rs"
+
+

@@ -1,16 +1,15 @@
 extern crate artifice_engine;
 extern crate gl;
 extern crate glfw;
-extern crate logging;
+extern crate artifice_logging;
 
 use std::ffi::CString;
 
-use artifice_engine::event::{
-    Event, EventType, KeyAction, KeyCode, KeyEvent, MouseButtonEvent, MouseMoveEvent,
-    MouseScrollEvent,
+use artifice_engine::events::{
+    Event, EventType, KeyAction, KeyCode,
 };
-use artifice_engine::{run_application, Application};
-use logging::{debug, error, info, trace, warn};
+use artifice_engine::{Engine, Application};
+use artifice_logging::{error, info};
 
 pub struct TestApplication {
     vertex_array: u32,
@@ -173,7 +172,7 @@ impl Application for TestApplication {
     fn event(&mut self, event: &mut Event) {
         match event.event_type {
             EventType::Keyboard => {
-                if let Some(key_event) = event.get_data::<KeyEvent>() {
+                if let Some(key_event) = event.as_key_event() {
                     let action_str = match key_event.action {
                         KeyAction::Press => "pressed",
                         KeyAction::Release => "released",
@@ -206,11 +205,22 @@ impl Application for TestApplication {
 }
 
 fn main() {
-    logging::init_from_env().expect("Failed to initialize logger");
+    artifice_logging::init_from_env().expect("Failed to initialize logger");
     info!("Program has started!");
 
-    // Run the application
-    run_application::<TestApplication>();
+    // Create and run the application using the actual engine
+    let app = TestApplication::new();
+    let mut engine = Engine::new(app);
+
+    // Set up OpenGL debug output if available
+    unsafe {
+        if gl::DebugMessageCallback::is_loaded() {
+            gl::Enable(gl::DEBUG_OUTPUT);
+            gl::Enable(gl::DEBUG_OUTPUT_SYNCHRONOUS);
+        }
+    }
+
+    engine.run();
 
     info!("Program has finished");
 }

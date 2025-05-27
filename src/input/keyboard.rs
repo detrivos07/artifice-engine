@@ -1,6 +1,6 @@
-use crate::event::{Event, EventType, KeyAction, KeyCode, KeyEvent, KeyMod};
-use crate::io::InputDevice;
-use logging::{debug, error, info, trace, warn};
+use crate::events::core::{Event, EventType, KeyAction, KeyCode, KeyEvent, KeyMod};
+use crate::input::InputDevice;
+use artifice_logging::{debug, error, info, trace, warn};
 use std::collections::{HashMap, HashSet};
 
 /// Keyboard state tracking and input handling
@@ -86,7 +86,7 @@ impl InputDevice for Keyboard {
 
 /// Helper functions for converting platform-specific key codes
 pub mod key_translation {
-    use crate::event::{KeyAction, KeyCode, KeyMod};
+    use crate::events::core::{KeyAction, KeyCode, KeyMod};
     use glfw::{Action, Key, Modifiers};
 
     /// Convert GLFW key to our abstracted KeyCode

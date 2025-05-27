@@ -1,9 +1,9 @@
-use crate::event::{
+use crate::events::core::{
     Event, EventType, KeyAction, KeyMod, MouseButton, MouseButtonEvent, MouseMoveEvent,
     MouseScrollEvent,
 };
-use crate::io::InputDevice;
-use logging::{debug, error, info, trace, warn};
+use crate::input::InputDevice;
+use artifice_logging::{debug, error, info, trace, warn};
 use std::collections::{HashMap, HashSet};
 
 /// Mouse state tracking and input handling
